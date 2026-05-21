@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>專案管理看板 v1</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+/* ── 全域變數 ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f7;--surface:#fff;--surface2:#f2f2f7;--border:#d2d2d7;
+  --text:#1d1d1f;--text2:#6e6e73;--text3:#aeaeb2;
+  --accent:#007aff;--green:#34c759;--red:#ff3b30;--orange:#ff9500;--purple:#af52de;
+  --shadow-s:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-m:0 4px 16px rgba(0,0,0,.10);--shadow-l:0 8px 32px rgba(0,0,0,.14);
+  --rs:8px;--rm:12px;--rl:16px;--rxl:20px;
+}
+body.dark{
+  --bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--border:#4a4a4c;
+  --text:#f5f5f7;--text2:#d1d1d6;--text3:#8e8e93;
+  --shadow-s:0 1px 3px rgba(0,0,0,.5);--shadow-m:0 4px 16px rgba(0,0,0,.5);--shadow-l:0 8px 32px rgba(0,0,0,.6);
+}
+body{font-family:-apple-system,SF Pro Text,Microsoft JhengHei,Segoe UI,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;transition:background .3s,color .3s;margin:0}
+
+/* ── Header ── */
+header{background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:13px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-s);z-index:200;flex-shrink:0}
+body.dark header{background:rgba(28,28,30,.92)}
+header h1{font-size:1.15rem;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+header .subtitle{font-size:.72rem;color:var(--text2);margin-top:2px}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.save-ind{font-size:.72rem;background:var(--surface2);color:var(--text2);padding:4px 12px;border-radius:20px;border:1px solid var(--border)}
+.theme-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 14px;cursor:pointer;font-size:.78rem;color:var(--text2);transition:all .2s}
+.theme-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Toolbar ── */
+.toolbar{background:var(--surface);padding:10px 28px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:var(--rs);padding:7px 16px;cursor:pointer;font-size:.8rem;font-weight:500;transition:all .18s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:var(--shadow-s)}
+.btn:active{transform:translateY(0);filter:brightness(.95)}
+.btn.green{background:var(--green)}
+.btn.gray{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn.gray:hover{background:var(--border);filter:none;transform:none}
+.btn.red{background:var(--red)}
+
+/* ── 篩選列 ── */
+.filter-bar{background:var(--surface2);padding:5px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.filter-bar select,.filter-bar input{border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.8rem;background:var(--surface);color:var(--text);outline:none}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--accent)}
+
+/* ── Stats ── */
+.stats-bar{display:flex;gap:12px;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.stat-card{background:var(--surface2);border-radius:var(--rm);padding:10px 20px;text-align:center;min-width:86px;border:1px solid var(--border);cursor:pointer;transition:transform .15s,box-shadow .15s}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-m)}
+.stat-card .num{font-size:1.55rem;font-weight:700;color:var(--accent)}
+.stat-card.or .num{color:var(--orange)}.stat-card.gr .num{color:var(--green)}.stat-card.rd .num{color:var(--red)}
+.stat-card .lbl{font-size:.7rem;color:var(--text2);margin-top:2px}
+
+/* ── 主內容區 ── */
+.main-layout{position:relative;overflow:hidden}
+.board-col{position:absolute;top:0;left:0;right:300px;bottom:0;overflow-y:scroll;transition:right .3s}
+.sidebar{position:absolute;top:0;right:0;bottom:0;width:300px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;box-shadow:-2px 0 8px rgba(0,0,0,.06);transition:transform .3s,opacity .3s;z-index:10}
+.sidebar.collapsed{transform:translateX(300px);opacity:0;pointer-events:none}
+.container{padding:20px 28px}
+
+/* ── 專案卡片 ── */
+.proj-card{background:var(--surface);border-radius:var(--rl);margin-bottom:14px;box-shadow:var(--shadow-s);border:1px solid var(--border);overflow:hidden;transition:box-shadow .2s,transform .2s}
+.proj-card:hover{box-shadow:var(--shadow-m);transform:translateY(-1px)}
+.proj-card[data-status="進行中"]{border-left:4px solid var(--accent)}
+.proj-card[data-status="待開始"]{border-left:4px solid var(--text3)}
+.proj-card[data-status="已完成"]{border-left:4px solid var(--green)}
+.proj-card[data-status="擱置"]{border-left:4px solid var(--red)}
+.proj-card.starred{border:2px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+
+/* ── 卡片標題列 ── */
+.proj-header{padding:14px 18px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.proj-header-left{display:flex;flex-direction:column;gap:6px;flex:1;cursor:pointer}
+.proj-header-left:hover .proj-title{color:var(--accent)}
+.proj-header-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.proj-id{font-size:.7rem;color:var(--text3);font-family:SF Mono,Menlo,monospace}
+.proj-title{font-weight:600;font-size:.96rem;color:var(--text)}
+.badge{font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.b-blue{background:rgba(0,122,255,.12);color:var(--accent)}
+.b-gray{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.b-green{background:rgba(52,199,89,.12);color:var(--green)}
+.b-red{background:rgba(255,59,48,.12);color:var(--red)}
+.b-orange{background:rgba(255,149,0,.12);color:var(--orange)}
+.b-type{background:rgba(255,149,0,.12);color:var(--orange)}
+.meta-row{display:flex;gap:14px;flex-wrap:wrap}
+.meta-item{font-size:.74rem;color:var(--text2)}
+.toggle-icon{font-size:.88rem;color:var(--text3);cursor:pointer;padding:4px 8px;margin-top:2px;transition:transform .2s}
+.proj-card.open .toggle-icon{transform:rotate(180deg)}
+.proj-header-actions{display:flex;gap:4px;align-items:flex-start}
+
+/* ── 整體進度條 ── */
+.proj-progress{padding:0 18px 12px;display:flex;flex-direction:column;gap:4px}
+.pp-row{display:flex;align-items:center;gap:8px}
+.pp-label{font-size:.68rem;color:var(--text3);width:52px;text-align:right;flex-shrink:0}
+.pp-bg{flex:1;height:6px;background:var(--surface2);border-radius:10px;overflow:hidden}
+.pp-fill{height:100%;border-radius:10px;transition:width .4s}
+.pp-pct{font-size:.7rem;font-weight:600;min-width:36px}
+
+/* ── 階段 + 任務區 ── */
+.phases{display:none;border-top:1px solid var(--border)}
+.proj-card.open .phases{display:block}
+
+
+/* ── 階段列固定欄位 ── */
+.phase-meta{display:flex;align-items:center;gap:0;flex-wrap:nowrap}
+.pm-col{display:inline-flex;align-items:center;flex-shrink:0}
+.pm-sep{color:var(--text3);font-size:.72rem;margin:0 3px;flex-shrink:0}
+.pm-status{width:70px}
+.pm-start{width:116px;margin-left:6px}
+.pm-due{width:116px}
+.pm-pct{width:44px;margin-left:6px;justify-content:flex-end}
+.pm-dur{width:100px;margin-left:8px}
+.pm-dur-badge{font-size:.66rem;background:rgba(0,122,255,.1);color:var(--accent);border-radius:10px;padding:1px 8px;font-weight:600;white-space:nowrap}
+.pm-dur-empty{font-size:.72rem;color:var(--text3)}
+
+/* ── 階段 ── */
+.phase-block{border-bottom:1px solid var(--border)}
+.phase-block:last-child{border-bottom:none}
+.phase-header{display:flex;align-items:center;gap:8px;padding:8px 18px 8px 24px;background:var(--surface2);cursor:pointer;user-select:none;transition:background .15s}
+.phase-header:hover{background:var(--border)}
+.phase-toggle{font-size:.72rem;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.phase-block.open .phase-toggle{transform:rotate(90deg)}
+.phase-name-inp{border:none;background:transparent;font-size:.84rem;font-weight:600;color:var(--text);outline:none;flex:1;cursor:text;min-width:80px}
+.phase-name-inp:focus{background:var(--surface);border-radius:4px;padding:1px 4px}
+.phase-badge{font-size:.66rem;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.phase-meta{font-size:.7rem;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap}
+.phase-actions{display:flex;gap:2px;margin-left:auto;flex-shrink:0}
+.phase-actions button{background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--text3);padding:2px 4px;border-radius:4px;transition:all .15s}
+.phase-actions button:hover{background:var(--surface);color:var(--accent)}
+
+/* ── 任務表格 ── */
+.tasks-wrap{display:none;overflow-x:auto}
+.phase-block.open .tasks-wrap{display:block}
+.task-table{width:auto;min-width:100%;border-collapse:collapse;table-layout:fixed}
+.task-table thead tr{background:var(--surface2)}
+.task-table thead th{padding:6px 8px;font-size:.66rem;color:var(--text2);font-weight:600;text-align:left;white-space:nowrap;position:relative;user-select:none;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.task-table thead th:last-child{border-right:none}
+.task-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+.task-table tbody tr:hover{background:var(--surface2)}
+.task-table tbody tr.done{opacity:.55;background:rgba(52,199,89,.06)}
+.task-table tbody tr.wip{background:rgba(255,149,0,.07)}
+.task-table td{padding:6px 8px;vertical-align:middle;overflow:hidden;font-size:.8rem;color:var(--text)}
+/* 欄寬拖曳 */
+.rz{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;background:transparent;z-index:2}
+.rz:hover,.rz.dragging{background:var(--accent);opacity:.5}
+/* 拖曳把手 */
+.drag-handle{width:28px;min-width:28px;cursor:grab;text-align:center;color:var(--text3);font-size:.85rem;user-select:none;padding:0 2px}
+.drag-handle:active{cursor:grabbing}
+.drag-handle:hover{color:var(--accent)}
+tr.drag-over-top{box-shadow:inset 0 2px 0 var(--accent)}
+tr.drag-over-bot{box-shadow:inset 0 -2px 0 var(--accent)}
+tr.dragging-row{opacity:.35}
+
+/* ── 輸入元件 ── */
+.di{font-size:.78rem;border:1px solid var(--border);border-radius:var(--rs);padding:3px 5px;outline:none;color:var(--text);background:var(--surface2);width:100%;transition:border-color .2s}
+.di:focus{border-color:var(--accent);background:var(--surface)}
+.di.done-date{background:rgba(52,199,89,.1);color:var(--green);border-color:var(--green)}
+.di:disabled{opacity:.4;cursor:not-allowed}
+.es{font-size:.78rem;border:1px solid var(--border);border-radius:var(--rs);padding:3px 5px;outline:none;background:var(--surface2);color:var(--text);width:100%;cursor:pointer}
+.es:focus{border-color:var(--accent)}
+.pc-wrap{display:flex;align-items:center;gap:5px}
+.pc-bar{flex:1;height:5px;background:var(--surface2);border-radius:10px;overflow:hidden;cursor:pointer;min-width:30px}
+.pc-fill{height:100%;border-radius:10px;transition:width .3s}
+.pc-inp{width:36px;font-size:.7rem;border:1px solid var(--border);border-radius:var(--rs);padding:2px 3px;text-align:center;outline:none;background:var(--surface2);color:var(--text)}
+.pc-inp:focus{border-color:var(--accent)}
+.add-task-row{padding:6px 18px 6px 28px}
+.add-task-row button{font-size:.76rem;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:var(--rs);padding:4px 14px;cursor:pointer;transition:all .15s}
+.add-task-row button:hover{background:rgba(0,122,255,.08)}
+.add-phase-row{padding:8px 18px 8px 28px;border-top:1px dashed var(--border)}
+.add-phase-row button{font-size:.76rem;color:var(--text2);background:none;border:1px dashed var(--border);border-radius:var(--rs);padding:4px 14px;cursor:pointer;transition:all .15s}
+.add-phase-row button:hover{border-color:var(--accent);color:var(--accent)}
+/* Tag 輸入 */
+.multi-tag-wrap{display:flex;flex-wrap:wrap;gap:4px;border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;min-height:36px;background:var(--surface2);cursor:text;align-items:center}
+.multi-tag-wrap:focus-within{border-color:var(--accent);background:var(--surface)}
+.m-tag{background:rgba(0,122,255,.12);color:var(--accent);border-radius:12px;padding:2px 8px;font-size:.75rem;display:inline-flex;align-items:center;gap:4px}
+.m-tag .rm{cursor:pointer;color:var(--text3);font-size:.8rem}
+.m-tag .rm:hover{color:var(--red)}
+.m-tag-input{border:none;outline:none;font-size:.8rem;background:transparent;color:var(--text);min-width:80px;flex:1}
+
+/* ── Modal ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--rxl);padding:26px;width:440px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-l);border:1px solid var(--border)}
+.modal h3{margin-bottom:14px;color:var(--text);font-size:1.02rem;font-weight:700}
+.modal label{font-size:.78rem;color:var(--text2);display:block;margin-bottom:4px;margin-top:10px}
+.modal input,.modal select,.modal textarea{width:100%;border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:.84rem;font-family:inherit;outline:none;background:var(--surface2);color:var(--text);transition:border-color .2s}
+.modal input:focus,.modal select:focus{border-color:var(--accent);background:var(--surface)}
+.modal-btns{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.date-pair{display:flex;gap:8px}
+.date-pair div{flex:1}
+
+/* ── 今日儀表板 ── */
+.sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px}
+.sidebar-header h2{font-size:.9rem;font-weight:700;color:var(--text)}
+.sidebar-toggle{background:none;border:none;cursor:pointer;color:var(--text2);font-size:.9rem;padding:2px 6px;border-radius:var(--rs);transition:all .15s}
+.sidebar-toggle:hover{background:var(--surface2);color:var(--accent)}
+.today-badge{font-size:.72rem;color:var(--text2);padding:3px 10px;background:var(--surface2);border-radius:20px;border:1px solid var(--border);margin:10px 16px 4px;display:inline-block}
+.sb-section{padding:10px 12px 4px}
+.sb-section-title{font-size:.72rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sb-section-title.overdue{color:var(--red)}
+.sb-section-title.thisweek{color:var(--orange)}
+.sb-section-title.upcoming{color:var(--green)}
+.sb-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rm);padding:8px 10px;margin-bottom:7px;cursor:pointer;transition:all .15s}
+.sb-item:hover{border-color:var(--accent);box-shadow:var(--shadow-s);transform:translateX(-2px)}
+.sb-item .sb-proj{font-size:.66rem;color:var(--text3);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-item .sb-phase{font-size:.64rem;color:var(--text3);margin-bottom:2px}
+.sb-item .sb-name{font-size:.8rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-item .sb-date{font-size:.68rem;margin-top:3px}
+.sb-item.overdue .sb-date{color:var(--red)}
+.sb-item.thisweek .sb-date{color:var(--orange)}
+.sb-item.upcoming .sb-date{color:var(--green)}
+.sb-empty{font-size:.78rem;color:var(--text3);padding:8px 12px 12px;text-align:center}
+.sb-open-btn{background:none;border:none;cursor:pointer;color:var(--text2);font-size:.78rem;padding:4px 8px;border-radius:var(--rs);transition:all .15s;white-space:nowrap}
+.sb-open-btn:hover{background:var(--surface2);color:var(--accent)}
+
+/* ── Drop Zone ── */
+#dropZone{margin:40px auto;max-width:480px;border:2px dashed var(--accent);border-radius:var(--rxl);padding:52px 20px;text-align:center;color:var(--accent);background:rgba(0,122,255,.04);cursor:pointer;transition:all .2s}
+#dropZone:hover{background:rgba(0,122,255,.09)}
+#dropZone .dz-icon{font-size:2.8rem}
+#dropZone .dz-title{font-size:1.05rem;font-weight:600;margin-top:10px}
+#dropZone .dz-sub{font-size:.82rem;color:var(--text2);margin-top:6px}
+
+
+/* ── 甘特圖 Modal ── */
+.gantt-wrap{overflow-x:auto;overflow-y:auto;max-height:70vh;position:relative}
+.gantt-table{border-collapse:collapse;min-width:100%;table-layout:fixed}
+.gantt-table th,.gantt-table td{border:1px solid var(--border);padding:0;vertical-align:middle}
+.gantt-head-sticky{position:sticky;top:0;z-index:10;background:var(--surface2)}
+.g-label{background:var(--surface2);font-size:.72rem;font-weight:600;color:var(--text);padding:4px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:2px solid var(--border)!important}
+.g-label.phase{background:rgba(0,122,255,.07);font-size:.74rem;color:var(--accent);padding-left:10px}
+.g-label.task{background:var(--surface);font-size:.7rem;color:var(--text2);padding-left:22px}
+.g-head-month{font-size:.68rem;font-weight:700;color:var(--text2);text-align:center;padding:3px 4px;background:var(--surface2)}
+.g-head-day{font-size:.6rem;color:var(--text3);text-align:center;padding:2px 1px;min-width:18px;width:18px;background:var(--surface2)}
+.g-head-day.today{background:rgba(255,59,48,.12);color:var(--red);font-weight:700}
+.g-head-day.weekend{background:var(--surface2);color:var(--text3);opacity:.45}
+.g-cell{width:18px;min-width:18px;height:26px;padding:0}
+.g-cell.weekend{background:repeating-linear-gradient(135deg,transparent,transparent 3px,rgba(0,0,0,.04) 3px,rgba(0,0,0,.04) 6px)}
+.g-cell.today-col{background:rgba(255,59,48,.06)}
+.g-bar{height:14px;border-radius:7px;margin:6px auto;display:block;position:relative;min-width:4px;cursor:pointer;transition:filter .15s;opacity:.9}
+.g-bar:hover{filter:brightness(1.15);opacity:1}
+.g-bar.proj{height:10px;border-radius:5px;margin:8px auto}
+.g-bar.phase-bar{height:12px;border-radius:6px;margin:7px auto}
+.g-bar.done{opacity:.55}
+.gantt-legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 0 4px;font-size:.72rem;color:var(--text2)}
+.gantt-legend span{display:flex;align-items:center;gap:5px}
+.gantt-legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+/* ── 甘特圖大 Modal ── */
+.modal-xl{width:min(96vw,1200px);max-height:94vh;padding:20px}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 20px;border-radius:var(--rm);font-size:.82rem;z-index:9999;box-shadow:var(--shadow-l);opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="appWrapper" style="display:flex;flex-direction:column;height:100vh;overflow:clip">
+
+<!-- ── 頂部標題列 ── -->
+<header>
+  <div>
+    <h1>📁 專案管理看板</h1>
+    <div class="subtitle">Project Management Board v1</div>
+  </div>
+  <div class="hdr-right">
+    <span class="save-ind" id="saveInd"></span>
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
+  </div>
+</header>
+
+<!-- ── 工具列 ── -->
+<div style="flex-shrink:0;z-index:100">
+  <div class="toolbar">
+    <button class="btn" onclick="openProjModal(-1)" style="font-weight:700">＋ 新增專案</button>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <label class="btn gray" style="cursor:pointer;margin:0">
+      <input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="importXlsx(event)">
+      📂 匯入
+    </label>
+    <button class="btn gray" onclick="exportXlsx()">📥 匯出</button>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <button class="btn gray" onclick="openMemberMgr()">👥 成員管理</button>
+    <div style="flex:1"></div>
+    <button class="btn gray" onclick="openGantt()">📊 甘特圖</button>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <button class="btn red" onclick="clearAllData()" style="font-size:.76rem">🗑 清除資料</button>
+  </div>
+  <div class="filter-bar">
+    <select id="filterStatus" onchange="render()">
+      <option value="">全部狀態</option>
+      <option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option>
+    </select>
+    <select id="filterOwner" onchange="render()"><option value="">全部負責人</option></select>
+    <input id="searchBox" placeholder="搜尋專案…" style="width:160px" oninput="render()">
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="clearFilters()">✕ 清除篩選</button>
+    <div style="flex:1"></div>
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="expandAll()">▼ 全展開</button>
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="collapseAll()">▶ 全收合</button>
+  </div>
+  <div class="stats-bar" id="statsBar"></div>
+</div>
+
+<!-- ── 主內容區 ── -->
+<div class="main-layout" id="mainZone">
+  <div class="board-col" id="boardCol">
+    <div id="dropZone" style="display:none"
+      ondragover="event.preventDefault();this.style.background='rgba(0,122,255,.13)'"
+      ondragleave="this.style.background='rgba(0,122,255,.04)'"
+      ondrop="handleDrop(event)"
+      onclick="document.getElementById('xlsxInput').click()">
+      <div class="dz-icon">📂</div>
+      <div class="dz-title">拖放 .xlsx 匯入</div>
+      <div class="dz-sub">或點擊選取檔案</div>
+    </div>
+    <div class="container" id="board"></div>
+  </div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>📅 今日儀表板</h2>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="收合">✕</button>
+    </div>
+    <div id="sidebarContent"></div>
+  </div>
+</div>
+
+<!-- 側欄開啟按鈕 -->
+<button class="sb-open-btn" id="sidebarOpenBtn" style="display:none;position:fixed;right:12px;bottom:20px;background:var(--accent);color:#fff;border-radius:20px;padding:8px 16px;box-shadow:var(--shadow-m);z-index:200" onclick="toggleSidebar()">📅 儀表板</button>
+
+<!-- Toast -->
+<!-- ══ Modal: 甘特圖 ══ -->
+<div class="overlay" id="ganttOverlay" onclick="if(event.target===this)closeModal('ganttOverlay')">
+  <div class="modal modal-xl">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">📊 專案甘特圖</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="ganttExportBtn" onclick="exportGanttXlsx()">📥 匯出 xlsx</button>
+        <button class="btn gray" onclick="closeModal('ganttOverlay')">關閉</button>
+      </div>
+    </div>
+    <div id="ganttBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══ Modal: 專案 ══ -->
+<div class="overlay" id="projOverlay" onclick="if(event.target===this)closeModal('projOverlay')">
+  <div class="modal">
+    <h3 id="projModalTitle">新增專案</h3>
+    <label>專案編號</label><input id="p-id" placeholder="PJ2026001">
+    <label>專案名稱</label><input id="p-name" placeholder="請輸入專案名稱">
+    <label>專案類型</label><input id="p-type" placeholder="例：系統開發、流程改善">
+    <label>負責人</label>
+    <div class="multi-tag-wrap" id="pOwnerWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>成員</label>
+    <div class="multi-tag-wrap" id="pMembersWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>狀態</label>
+    <select id="p-status">
+      <option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option>
+    </select>
+    <label>期間</label>
+    <div class="date-pair">
+      <div><label>開始日</label><input type="date" id="p-start"></div>
+      <div><label>完成日</label><input type="date" id="p-due"></div>
+    </div>
+    <label>實際完成日</label><input type="date" id="p-actual">
+    <label>備註</label><textarea id="p-notes" rows="3" placeholder="備註說明"></textarea>
+    <div class="modal-btns">
+      <button class="btn gray" onclick="closeModal('projOverlay')">取消</button>
+      <button class="btn" onclick="saveProj()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal: 任務 ══ -->
+<div class="overlay" id="taskOverlay" onclick="if(event.target===this)closeModal('taskOverlay')">
+  <div class="modal">
+    <h3 id="taskModalTitle">編輯任務</h3>
+    <label>任務名稱</label><input id="t-name">
+    <label>負責人</label>
+    <div class="multi-tag-wrap" id="tPersonWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>狀態</label>
+    <select id="t-status">
+      <option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option>
+    </select>
+    <div class="date-pair">
+      <div><label>開始日</label><input type="date" id="t-start"></div>
+      <div><label>完成日</label><input type="date" id="t-due"></div>
+    </div>
+    <label>實際完成日</label><input type="date" id="t-actual">
+    <label>完成率</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+      <input type="range" id="t-pct" min="0" max="100" value="0" style="flex:1;accent-color:var(--accent)" oninput="document.getElementById('tPctLabel').textContent=this.value">
+      <span id="tPctLabel" style="font-size:.82rem;min-width:28px">0</span><span style="font-size:.82rem">%</span>
+    </div>
+    <label>備註</label><textarea id="t-note" rows="2" placeholder="備註"></textarea>
+    <div class="modal-btns">
+      <button class="btn gray" onclick="closeModal('taskOverlay')">取消</button>
+      <button class="btn" onclick="saveTask()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal: 成員管理 ══ -->
+<div class="overlay" id="memberOverlay" onclick="if(event.target===this)closeModal('memberOverlay')">
+  <div class="modal">
+    <h3>👥 成員管理</h3>
+    <div id="memberList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <input id="newMemberName" placeholder="輸入成員姓名" style="flex:1" onkeydown="if(event.key==='Enter')addMember()">
+      <button class="btn green" onclick="addMember()">新增</button>
+    </div>
+    <div class="modal-btns"><button class="btn gray" onclick="closeModal('memberOverlay')">關閉</button></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  常數 / 儲存鍵
+// ══════════════════════════════════════════════════════
+// 三層結構：專案（Project）→ 階段（Phase）→ 任務（Task）
+const SK = { data:'pm_proj_v1_data', theme:'pm_proj_v1_theme' };
+
+// ══════════════════════════════════════════════════════
+//  localStorage 工具
+// ══════════════════════════════════════════════════════
+// 從 localStorage 讀取資料，若不存在則回傳預設值
+function load(key, def){ try{ const v=localStorage.getItem(key); return v?JSON.parse(v):def; }catch(e){ return def; } }
+// 將資料序列化後存入 localStorage
+function save(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+// 儲存主要資料並顯示提示
+function saveData(){ save(SK.data, DATA); showSaveInd(); }
+// 短暫顯示「已自動儲存」提示
+function showSaveInd(){ const el=document.getElementById('saveInd'); el.textContent='✓ 已自動儲存'; clearTimeout(el._t); el._t=setTimeout(()=>el.textContent='',3000); }
+// 回傳今日日期字串 yyyy-mm-dd
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+
+// ══════════════════════════════════════════════════════
+//  資料初始化
+// ══════════════════════════════════════════════════════
+const DEFDATA = { members:[], projects:[] };
+let DATA = load(SK.data, DEFDATA);
+if(!DATA.members) DATA.members=[];
+if(!DATA.projects) DATA.projects=[];
+
+// ══════════════════════════════════════════════════════
+//  主題切換
+// ══════════════════════════════════════════════════════
+// 切換亮色／深色主題並儲存偏好
+function toggleTheme(){ const dark=document.body.classList.toggle('dark'); save(SK.theme,dark?'dark':'light'); document.getElementById('themeBtn').textContent=dark?'☀️':'🌙'; }
+// 初始化主題（頁面載入時讀取上次設定）
+function initTheme(){ if(load(SK.theme,'light')==='dark'){ document.body.classList.add('dark'); document.getElementById('themeBtn').textContent='☀️'; } }
+
+// ══════════════════════════════════════════════════════
+//  Tag 輸入元件
+// ══════════════════════════════════════════════════════
+// 初始化多選 Tag 輸入框（支援鍵盤輸入、自動完成建議）
+function initTagInput(wrapId, values, suggestions, onChange){
+  const wrap=document.getElementById(wrapId);
+  if(!wrap) return;
+  wrap.innerHTML='';
+  const vals=[...values];
+  // （內部）重新渲染 Tag 列表
+  function refresh(){
+    wrap.querySelectorAll('.m-tag').forEach(t=>t.remove());
+    vals.forEach((v,i)=>{
+      const tag=document.createElement('span'); tag.className='m-tag';
+      tag.innerHTML=`${v} <span class="rm" onclick="this.parentNode.remove();vals.splice(${i},1);refresh()">✕</span>`;
+      // 重新綁定 rm，因 index 會變
+      tag.querySelector('.rm').onclick=()=>{ vals.splice(i,1); refresh(); if(onChange) onChange(vals); };
+      wrap.insertBefore(tag, wrap.querySelector('.m-tag-input'));
+    });
+    if(onChange) onChange(vals);
+  }
+  const inp=document.createElement('input'); inp.className='m-tag-input'; inp.placeholder='輸入成員…';
+  inp.addEventListener('keydown',e=>{
+    if((e.key==='Enter'||e.key===',')&&inp.value.trim()){ e.preventDefault(); const v=inp.value.trim(); if(v&&!vals.includes(v)){ vals.push(v); refresh(); } inp.value=''; }
+    else if(e.key==='Backspace'&&!inp.value&&vals.length){ vals.pop(); refresh(); }
+  });
+  if(suggestions&&suggestions.length){
+    inp.addEventListener('focus',()=>showSugg(inp,suggestions,vals,refresh));
+    inp.addEventListener('input',()=>showSugg(inp,suggestions,vals,refresh));
+  }
+  wrap.appendChild(inp);
+  wrap.getVals=()=>vals;
+  refresh();
+}
+let _suggEl=null;
+// 顯示輸入建議下拉選單
+function showSugg(inp,suggs,vals,refresh){
+  removeSugg();
+  const q=inp.value.toLowerCase();
+  const filtered=suggs.filter(s=>!vals.includes(s)&&s.toLowerCase().includes(q));
+  if(!filtered.length) return;
+  _suggEl=document.createElement('div');
+  _suggEl.style.cssText='position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--rm);box-shadow:var(--shadow-m);z-index:9999;min-width:120px;overflow:hidden;pointer-events:auto';
+  filtered.forEach(s=>{
+    const d=document.createElement('div');
+    d.textContent=s; d.style.cssText='padding:7px 12px;cursor:pointer;font-size:.82rem;color:var(--text)';
+    d.onmouseenter=()=>d.style.background='var(--surface2)';
+    d.onmouseleave=()=>d.style.background='';
+    d.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); vals.push(s); refresh(); inp.value=''; setTimeout(removeSugg,0); inp.focus(); };
+    _suggEl.appendChild(d);
+  });
+  const rect=inp.getBoundingClientRect();
+  _suggEl.style.left=rect.left+'px'; _suggEl.style.top=rect.bottom+4+'px';
+  document.body.appendChild(_suggEl);
+}
+// 移除輸入建議下拉選單
+function removeSugg(){ if(_suggEl){ _suggEl.remove(); _suggEl=null; } }
+document.addEventListener('mousedown',e=>{ if(_suggEl&&!_suggEl.contains(e.target)&&!e.target.classList.contains('m-tag-input')) removeSugg(); });
+// 取得 Tag 輸入框目前的值陣列
+function getTagVals(wrapId){ return document.getElementById(wrapId)?.getVals?.()??[]; }
+// 將 Tag 陣列格式化為「、」分隔字串
+function fmtTags(arr){ return arr.join('、'); }
+// 將分隔字串解析為 Tag 陣列
+function parseTags(str){ if(!str||str==='－') return []; return str.split(/[、,]/).map(s=>s.trim()).filter(Boolean); }
+
+// ══════════════════════════════════════════════════════
+//  進度計算
+// ══════════════════════════════════════════════════════
+// 計算階段的完成率（依任務完成率平均）
+function calcPhaseProgress(phase){
+  const tasks=phase.tasks||[];
+  if(!tasks.length) return 0;
+  const sum=tasks.reduce((a,t)=>a+(t.status==='已完成'?100:(t.pct||0)),0);
+  return Math.round(sum/tasks.length);
+}
+// 計算專案整體完成率（依所有任務平均）
+function calcProjProgress(proj){
+  const allTasks=(proj.phases||[]).flatMap(p=>p.tasks||[]);
+  if(!allTasks.length) return 0;
+  const sum=allTasks.reduce((a,t)=>a+(t.status==='已完成'?100:(t.pct||0)),0);
+  return Math.round(sum/allTasks.length);
+}
+// 依完成率回傳顏色
+function pctColor(pct){ return pct>=100?'var(--green)':pct>=60?'var(--accent)':pct>=30?'var(--orange)':'var(--red)'; }
+
+// ══════════════════════════════════════════════════════
+//  Modal 控制
+// ══════════════════════════════════════════════════════
+// 關閉指定 Modal 並重新渲染
+function closeModal(id){ document.getElementById(id).classList.remove('show'); render(); }
+// 開啟指定 Modal
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+
+// ══════════════════════════════════════════════════════
+//  專案 CRUD
+// ══════════════════════════════════════════════════════
+let _editPi=-1;
+// 開啟專案新增/編輯 Modal（pi<0 為新增）
+function openProjModal(pi){
+  _editPi=pi;
+  document.getElementById('projModalTitle').textContent=pi<0?'新增專案':'編輯專案';
+  const p=pi<0?{}:DATA.projects[pi];
+  document.getElementById('p-id').value=p.id||'';
+  document.getElementById('p-name').value=p.name||'';
+  document.getElementById('p-type').value=p.type||'';
+  document.getElementById('p-status').value=p.status||'待開始';
+  document.getElementById('p-start').value=p.startDate||'';
+  document.getElementById('p-due').value=p.dueDate||'';
+  document.getElementById('p-actual').value=p.actualDate||'';
+  document.getElementById('p-notes').value=p.notes||'';
+  initTagInput('pOwnerWrap', parseTags(p.owner||''), DATA.members);
+  initTagInput('pMembersWrap', parseTags(p.members||''), DATA.members);
+  openModal('projOverlay');
+}
+// 儲存專案表單資料
+function saveProj(){
+  const now=new Date().toISOString();
+  const proj={
+    id:document.getElementById('p-id').value||('PJ'+Date.now()),
+    name:document.getElementById('p-name').value||'未命名專案',
+    type:document.getElementById('p-type').value||'',
+    owner:fmtTags(getTagVals('pOwnerWrap')),
+    members:fmtTags(getTagVals('pMembersWrap')),
+    status:document.getElementById('p-status').value,
+    startDate:document.getElementById('p-start').value,
+    dueDate:document.getElementById('p-due').value,
+    actualDate:document.getElementById('p-actual').value,
+    notes:document.getElementById('p-notes').value,
+    createdDate:_editPi<0?now:(DATA.projects[_editPi].createdDate||now),
+    lastUpdated:now,
+    phases:_editPi<0?[]:(DATA.projects[_editPi].phases||[]),
+    starred:_editPi<0?false:!!(DATA.projects[_editPi].starred),
+  };
+  if(_editPi<0) DATA.projects.push(proj);
+  else DATA.projects[_editPi]=proj;
+  saveData(); closeModal('projOverlay');
+}
+// 刪除指定專案
+function deleteProj(pi){ if(!confirm('確定要刪除這個專案嗎？')) return; DATA.projects.splice(pi,1); saveData(); render(); }
+// 切換重大專案標記
+function toggleStar(pi){ DATA.projects[pi].starred=!DATA.projects[pi].starred; saveData(); render(); }
+
+// ══════════════════════════════════════════════════════
+//  階段 CRUD
+// ══════════════════════════════════════════════════════
+// 新增一個空白階段到指定專案
+function addPhase(pi){
+  DATA.projects[pi].phases=DATA.projects[pi].phases||[];
+  DATA.projects[pi].phases.push({id:'ph'+Date.now(),name:'新階段',owner:'',startDate:'',dueDate:'',status:'待開始',tasks:[]});
+  saveData(); render(); setTimeout(()=>{ _openCards.add(pi); render(); },0);
+}
+// 更新階段名稱（inline 編輯）
+function updatePhaseName(pi,phi,val){ DATA.projects[pi].phases[phi].name=val; saveData(); }
+// 更新階段欄位值
+function updatePhaseField(pi,phi,field,val){ DATA.projects[pi].phases[phi][field]=val; saveData(); renderSidebar(); }
+// 刪除指定階段
+function deletePhase(pi,phi){ if(!confirm('確定要刪除這個階段？')) return; DATA.projects[pi].phases.splice(phi,1); saveData(); render(); }
+
+// ══════════════════════════════════════════════════════
+//  任務 CRUD
+// ══════════════════════════════════════════════════════
+let _editPi2=-1, _editPhi=-1, _editTi=-1;
+// 開啟任務編輯 Modal
+function openTaskModal(pi,phi,ti){
+  _editPi2=pi; _editPhi=phi; _editTi=ti;
+  const t=DATA.projects[pi].phases[phi].tasks[ti];
+  document.getElementById('taskModalTitle').textContent='編輯任務';
+  document.getElementById('t-name').value=t.name||'';
+  document.getElementById('t-status').value=t.status||'待開始';
+  document.getElementById('t-start').value=t.startDate||'';
+  document.getElementById('t-due').value=t.dueDate||'';
+  document.getElementById('t-actual').value=t.actualDate||'';
+  document.getElementById('t-pct').value=t.pct||0;
+  document.getElementById('tPctLabel').textContent=t.pct||0;
+  document.getElementById('t-note').value=t.note||'';
+  initTagInput('tPersonWrap', parseTags(t.person||''), DATA.members);
+  openModal('taskOverlay');
+}
+// 儲存任務 Modal 資料
+function saveTask(){
+  const t=DATA.projects[_editPi2].phases[_editPhi].tasks[_editTi];
+  t.name=document.getElementById('t-name').value;
+  t.person=fmtTags(getTagVals('tPersonWrap'));
+  t.status=document.getElementById('t-status').value;
+  t.startDate=document.getElementById('t-start').value;
+  t.dueDate=document.getElementById('t-due').value;
+  t.actualDate=document.getElementById('t-actual').value;
+  t.pct=parseInt(document.getElementById('t-pct').value)||0;
+  t.note=document.getElementById('t-note').value;
+  if(t.status==='已完成'){ t.pct=100; if(!t.actualDate) t.actualDate=todayStr(); }
+  saveData(); closeModal('taskOverlay');
+}
+// 新增一列空白任務到指定階段
+function addTaskRow(pi,phi){
+  DATA.projects[pi].phases[phi].tasks=DATA.projects[pi].phases[phi].tasks||[];
+  DATA.projects[pi].phases[phi].tasks.push({name:'新任務',person:'',startDate:'',dueDate:'',actualDate:'',status:'待開始',pct:0,note:''});
+  saveData(); render();
+}
+// 複製指定任務
+function copyTask(pi,phi,ti){
+  const orig=DATA.projects[pi].phases[phi].tasks[ti];
+  const copy=JSON.parse(JSON.stringify(orig));
+  copy.name+='（複製）'; copy.actualDate=''; copy.status='待開始'; copy.pct=0;
+  DATA.projects[pi].phases[phi].tasks.splice(ti+1,0,copy);
+  saveData(); render();
+}
+// 刪除指定任務
+function deleteTask(pi,phi,ti){ if(!confirm('確定要刪除這個任務嗎？')) return; DATA.projects[pi].phases[phi].tasks.splice(ti,1); saveData(); render(); }
+// 更新任務單一欄位（inline 編輯）
+function updateTaskField(pi,phi,ti,field,val){
+  const t=DATA.projects[pi].phases[phi].tasks[ti];
+  t[field]=val;
+  if(field==='status'&&val==='已完成'){ t.pct=100; if(!t.actualDate) t.actualDate=todayStr(); }
+  if(field==='status'&&val!=='已完成'){ if(t.pct===100) t.pct=0; }
+  saveData(); render();
+}
+// 更新任務完成率
+function updateTaskPct(pi,phi,ti,val){ DATA.projects[pi].phases[phi].tasks[ti].pct=parseInt(val)||0; saveData(); }
+
+// ══════════════════════════════════════════════════════
+//  任務欄寬
+// ══════════════════════════════════════════════════════
+const COL_DEF={name:160,person:120,status:76,start:94,due:94,actual:94,pct:90,note:160,ops:84};
+let COL_W={...COL_DEF};
+// 啟動滑鼠拖曳調整欄寬
+function startColResize(e,col){
+  e.preventDefault(); e.stopPropagation();
+  const rz=e.target; rz.classList.add('dragging');
+  const startX=e.clientX, startW=COL_W[col];
+  const onMove=ev=>{ const nw=Math.max(40,startW+ev.clientX-startX); COL_W[col]=nw; document.querySelectorAll(`[data-col-id="${col}"]`).forEach(el=>{ el.style.width=nw+'px'; el.style.maxWidth=nw+'px'; }); };
+  const onUp=()=>{ rz.classList.remove('dragging'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); document.body.style.cursor=''; document.body.style.userSelect=''; render(); };
+  document.body.style.cursor='col-resize'; document.body.style.userSelect='none';
+  document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
+}
+
+// ══════════════════════════════════════════════════════
+//  任務拖曳排序（限 ⠿ 把手）
+// ══════════════════════════════════════════════════════
+// 初始化任務拖曳排序（只有按住 ⠿ 把手才能拖曳）
+function initTaskDragSort(pi,phi){
+  const tbody=document.querySelector(`#phase-${pi}-${phi} .task-tbody`);
+  if(!tbody) return;
+  let dragTi=null;
+  tbody.querySelectorAll('td.drag-handle').forEach(handle=>{
+    handle.addEventListener('mousedown',()=>{ const tr=handle.closest('tr'); if(tr) tr.draggable=true; });
+  });
+  tbody.addEventListener('dragstart',e=>{ const tr=e.target.closest('tr[data-ti]'); if(!tr) return; dragTi=parseInt(tr.dataset.ti); tr.classList.add('dragging-row'); e.dataTransfer.effectAllowed='move'; });
+  tbody.addEventListener('dragend',e=>{ const tr=e.target.closest('tr'); if(tr){ tr.classList.remove('dragging-row'); tr.draggable=false; } tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over-top','drag-over-bot')); dragTi=null; });
+  tbody.addEventListener('dragover',e=>{ e.preventDefault(); const tr=e.target.closest('tr[data-ti]'); if(!tr) return; const overTi=parseInt(tr.dataset.ti); if(overTi===dragTi) return; tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over-top','drag-over-bot')); const rect=tr.getBoundingClientRect(); tr.classList.add(e.clientY<rect.top+rect.height/2?'drag-over-top':'drag-over-bot'); });
+  tbody.addEventListener('drop',e=>{ e.preventDefault(); const tr=e.target.closest('tr[data-ti]'); if(!tr||dragTi===null) return; const overTi=parseInt(tr.dataset.ti); if(overTi===dragTi) return; const rect=tr.getBoundingClientRect(); const insertAfter=e.clientY>=rect.top+rect.height/2; const tasks=DATA.projects[pi].phases[phi].tasks; const [moved]=tasks.splice(dragTi,1); let idx=overTi>dragTi?overTi-1:overTi; if(insertAfter) idx++; tasks.splice(idx,0,moved); saveData(); render(); });
+}
+
+// ══════════════════════════════════════════════════════
+//  開/收合狀態管理
+// ══════════════════════════════════════════════════════
+let _openCards=new Set();
+let _openPhases={};
+// 切換專案卡片展開/收合
+function toggleCard(pi){ if(_openCards.has(pi)) _openCards.delete(pi); else _openCards.add(pi); render(); }
+// 切換階段展開/收合
+function togglePhase(pi,phi){ const k=`${pi}-${phi}`; if(_openPhases[k]) delete _openPhases[k]; else _openPhases[k]=true; render(); }
+// 展開所有專案卡片
+function expandAll(){ DATA.projects.forEach((_,i)=>_openCards.add(i)); render(); }
+// 收合所有專案卡片
+function collapseAll(){ _openCards.clear(); _openPhases={}; render(); }
+
+// ══════════════════════════════════════════════════════
+//  成員管理
+// ══════════════════════════════════════════════════════
+// 開啟成員管理 Modal
+function openMemberMgr(){ renderMemberList(); openModal('memberOverlay'); }
+// 重新渲染成員管理清單
+function renderMemberList(){
+  const el=document.getElementById('memberList');
+  el.innerHTML=DATA.members.map((m,i)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.8rem">${m}<span onclick="delMember(${i})" style="cursor:pointer;color:var(--text3);margin-left:2px">✕</span></span>`).join('');
+}
+// 新增成員
+function addMember(){ const v=document.getElementById('newMemberName').value.trim(); if(!v||DATA.members.includes(v)) return; DATA.members.push(v); document.getElementById('newMemberName').value=''; saveData(); renderMemberList(); }
+// 刪除成員
+function delMember(i){ DATA.members.splice(i,1); saveData(); renderMemberList(); }
+
+// ══════════════════════════════════════════════════════
+//  篩選 / 搜尋
+// ══════════════════════════════════════════════════════
+// 清除所有篩選條件
+function clearFilters(){ document.getElementById('filterStatus').value=''; document.getElementById('filterOwner').value=''; document.getElementById('searchBox').value=''; render(); }
+// 重新整理負責人篩選下拉
+function refreshOwnerFilter(){
+  const sel=document.getElementById('filterOwner'); const cur=sel.value;
+  sel.innerHTML='<option value="">全部負責人</option>'+DATA.members.map(m=>`<option>${m}</option>`).join('');
+  if(cur) sel.value=cur;
+}
+// 清除所有資料
+function clearAllData(){ if(!confirm('確定要清除所有專案資料嗎？')) return; DATA.projects=[]; saveData(); render(); }
+
+// ══════════════════════════════════════════════════════
+//  主渲染函數 — 依篩選條件重新渲染統計列與所有專案卡片
+// ══════════════════════════════════════════════════════
+function render(){
+  refreshOwnerFilter();
+  const fs=document.getElementById('filterStatus').value;
+  const fo=document.getElementById('filterOwner').value;
+  const fq=document.getElementById('searchBox').value.toLowerCase();
+
+  let projs=DATA.projects;
+  if(fs) projs=projs.filter(p=>p.status===fs);
+  if(fo) projs=projs.filter(p=>String(p.owner||'').includes(fo)||String(p.members||'').includes(fo));
+  if(fq) projs=projs.filter(p=>p.name.toLowerCase().includes(fq)||p.id.toLowerCase().includes(fq)||String(p.type||'').toLowerCase().includes(fq));
+
+  // 統計列
+  const total=DATA.projects.length;
+  const wip=DATA.projects.filter(p=>p.status==='進行中').length;
+  const done=DATA.projects.filter(p=>p.status==='已完成').length;
+  const overdue=DATA.projects.filter(p=>p.dueDate&&p.dueDate<todayStr()&&p.status!=='已完成').length;
+  document.getElementById('statsBar').innerHTML=
+    `<div class="stat-card" onclick="document.getElementById('filterStatus').value='';render()"><div class="num">${total}</div><div class="lbl">全部專案</div></div>`+
+    `<div class="stat-card" onclick="document.getElementById('filterStatus').value='進行中';render()"><div class="num" style="color:var(--accent)">${wip}</div><div class="lbl">進行中</div></div>`+
+    `<div class="stat-card gr" onclick="document.getElementById('filterStatus').value='已完成';render()"><div class="num">${done}</div><div class="lbl">已完成</div></div>`+
+    `<div class="stat-card rd"><div class="num">${overdue}</div><div class="lbl">已逾期</div></div>`;
+
+  const board=document.getElementById('board');
+  if(!DATA.projects.length){
+    document.getElementById('dropZone').style.display='block';
+    board.innerHTML=''; renderSidebar(); return;
+  }
+  document.getElementById('dropZone').style.display='none';
+
+  board.innerHTML=projs.map(p=>{
+    const pi=DATA.projects.indexOf(p);
+    const isOpen=_openCards.has(pi);
+    const pct=calcProjProgress(p);
+    const statusBadge={待開始:'b-gray',進行中:'b-blue',已完成:'b-green',擱置:'b-red'}[p.status]||'b-gray';
+
+    const phasesHtml=(p.phases||[]).map((ph,phi)=>{
+      const phaseOpen=!!_openPhases[`${pi}-${phi}`];
+      const phPct=calcPhaseProgress(ph);
+      const phStatusBadge={待開始:'b-gray',進行中:'b-blue',已完成:'b-green',擱置:'b-red'}[ph.status]||'b-gray';
+
+      const tasksHtml=(ph.tasks||[]).map((t,ti)=>{
+        const isDone=t.status==='已完成';
+        const isWip=t.status==='進行中';
+        const pc=t.pct||0;
+        return `<tr class="${isDone?'done':''} ${isWip?'wip':''}" data-ti="${ti}">
+          <td class="drag-handle" title="拖曳排序">⠿</td>
+          <td style="width:${COL_W.name}px;max-width:${COL_W.name}px" data-col-id="name"><input class="di" value="${t.name||''}" onchange="updateTaskField(${pi},${phi},${ti},'name',this.value)"></td>
+          <td style="width:${COL_W.person}px;max-width:${COL_W.person}px" data-col-id="person">
+            <div id="taskperson-${pi}-${phi}-${ti}" class="task-person-wrap"></div>
+          </td>
+          <td style="width:${COL_W.status}px;max-width:${COL_W.status}px" data-col-id="status">
+            <select class="es" onchange="updateTaskField(${pi},${phi},${ti},'status',this.value)">
+              ${['待開始','進行中','已完成','擱置'].map(s=>`<option${t.status===s?' selected':''}>${s}</option>`).join('')}
+            </select>
+          </td>
+          <td style="width:${COL_W.start}px;max-width:${COL_W.start}px" data-col-id="start"><input type="date" class="di" value="${t.startDate||''}" ${isDone?'disabled':''} onchange="updateTaskField(${pi},${phi},${ti},'startDate',this.value)"></td>
+          <td style="width:${COL_W.due}px;max-width:${COL_W.due}px" data-col-id="due"><input type="date" class="di" value="${t.dueDate||''}" ${isDone?'disabled':''} onchange="updateTaskField(${pi},${phi},${ti},'dueDate',this.value)"></td>
+          <td style="width:${COL_W.actual}px;max-width:${COL_W.actual}px" data-col-id="actual"><input type="date" class="di ${t.actualDate?'done-date':''}" value="${t.actualDate||''}" onchange="updateTaskField(${pi},${phi},${ti},'actualDate',this.value)"></td>
+          <td style="width:${COL_W.pct}px;max-width:${COL_W.pct}px" data-col-id="pct">
+            <div class="pc-wrap">
+              <div class="pc-bar" onclick="this.nextElementSibling.focus();this.nextElementSibling.select()">
+                <div class="pc-fill" style="width:${pc}%;background:${pctColor(pc)}"></div>
+              </div>
+              <input class="pc-inp" type="number" value="${pc}" min="0" max="100" onchange="updateTaskPct(${pi},${phi},${ti},this.value);render()">
+              <span style="font-size:.66rem;color:var(--text3)">%</span>
+            </div>
+          </td>
+          <td style="width:${COL_W.note}px;max-width:${COL_W.note}px" data-col-id="note"><input class="di" value="${t.note||''}" placeholder="備註" onchange="updateTaskField(${pi},${phi},${ti},'note',this.value)"></td>
+          <td style="width:${COL_W.ops}px;max-width:${COL_W.ops}px;text-align:center;white-space:nowrap" data-col-id="ops">
+            <button onclick="openTaskModal(${pi},${phi},${ti})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.82rem" title="編輯">✏️</button>
+            <button onclick="copyTask(${pi},${phi},${ti})" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:.82rem" title="複製">📋</button>
+            <button onclick="deleteTask(${pi},${phi},${ti})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.82rem" title="刪除">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      return `<div class="phase-block ${phaseOpen?'open':''}" id="phase-${pi}-${phi}" data-phi="${phi}">
+        <div class="phase-header" onclick="togglePhase(${pi},${phi})">
+          <span class="phase-drag-handle" onclick="event.stopPropagation()" title="拖曳調整階段順序" style="cursor:grab;color:var(--text3);font-size:.85rem;padding:0 4px;user-select:none">⠿</span>
+          <span class="phase-toggle">▶</span>
+          <input class="phase-name-inp" value="${ph.name||''}" onclick="event.stopPropagation()" onchange="updatePhaseName(${pi},${phi},this.value)">
+          <span class="phase-badge ${phStatusBadge}">${ph.status||'待開始'}</span>
+          <div class="phase-meta" onclick="event.stopPropagation()">
+            <span class="pm-col pm-status">
+              <select class="es" style="font-size:.68rem;padding:2px 4px;width:64px" onchange="updatePhaseField(${pi},${phi},'status',this.value)">
+                ${['待開始','進行中','已完成','擱置'].map(s=>`<option${(ph.status||'待開始')===s?' selected':''}>${s}</option>`).join('')}
+              </select>
+            </span>
+            <span class="pm-col pm-start">
+              <input type="date" class="di" style="font-size:.68rem;padding:2px 4px;width:108px" value="${ph.startDate||''}" title="開始日" onclick="event.stopPropagation()" onchange="updatePhaseField(${pi},${phi},'startDate',this.value)">
+            </span>
+            <span class="pm-sep">→</span>
+            <span class="pm-col pm-due">
+              <input type="date" class="di" style="font-size:.68rem;padding:2px 4px;width:108px" value="${ph.dueDate||''}" title="完成日" onclick="event.stopPropagation()" onchange="updatePhaseField(${pi},${phi},'dueDate',this.value)">
+            </span>
+            <span class="pm-col pm-pct">
+              <span style="font-size:.68rem;font-weight:700;color:${pctColor(phPct)};display:inline-block;text-align:right;width:100%">${phPct}%</span>
+            </span>
+            <span class="pm-col pm-dur">
+              ${ph.startDate&&ph.dueDate?`<span class="pm-dur-badge">${fmtDuration(ph.startDate,ph.dueDate)}</span>`:'<span class="pm-dur-empty">—</span>'}
+            </span>
+          </div>
+          <div class="phase-actions" onclick="event.stopPropagation()">
+            <button onclick="addTaskRow(${pi},${phi})" title="新增任務">＋</button>
+            <button onclick="deletePhase(${pi},${phi})" title="刪除階段" style="color:var(--red)">🗑</button>
+          </div>
+        </div>
+        <div class="tasks-wrap">
+          <table class="task-table">
+            <thead><tr>
+              <th style="width:28px;min-width:28px;padding:4px 2px;border-right:1px solid var(--border)"></th>
+              <th style="width:${COL_W.name}px;position:relative" data-col-id="name">任務名稱<span class="rz" onmousedown="startColResize(event,'name')"></span></th>
+              <th style="width:${COL_W.person}px;position:relative" data-col-id="person">負責人<span class="rz" onmousedown="startColResize(event,'person')"></span></th>
+              <th style="width:${COL_W.status}px;position:relative" data-col-id="status">狀態<span class="rz" onmousedown="startColResize(event,'status')"></span></th>
+              <th style="width:${COL_W.start}px;position:relative" data-col-id="start">開始日<span class="rz" onmousedown="startColResize(event,'start')"></span></th>
+              <th style="width:${COL_W.due}px;position:relative" data-col-id="due">完成日<span class="rz" onmousedown="startColResize(event,'due')"></span></th>
+              <th style="width:${COL_W.actual}px;position:relative" data-col-id="actual">實際完成<span class="rz" onmousedown="startColResize(event,'actual')"></span></th>
+              <th style="width:${COL_W.pct}px;position:relative" data-col-id="pct">完成率<span class="rz" onmousedown="startColResize(event,'pct')"></span></th>
+              <th style="width:${COL_W.note}px;position:relative" data-col-id="note">備註<span class="rz" onmousedown="startColResize(event,'note')"></span></th>
+              <th style="width:${COL_W.ops}px" data-col-id="ops">操作</th>
+            </tr></thead>
+            <tbody class="task-tbody">${tasksHtml}</tbody>
+          </table>
+          <div class="add-task-row"><button onclick="addTaskRow(${pi},${phi})">＋ 新增任務</button></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="proj-card ${isOpen?'open':''} ${p.starred?'starred':''}" data-status="${p.status}" id="proj-${pi}">
+      <div class="proj-header">
+        <div class="proj-header-left" onclick="toggleCard(${pi})">
+          <div class="proj-header-top">
+            <span class="proj-id">${p.id||''}</span>
+            <span class="proj-title">${p.name||'未命名專案'}</span>
+            ${p.type?`<span class="badge b-type">${p.type}</span>`:''}
+            <span class="badge ${statusBadge}">${p.status||'待開始'}</span>
+          </div>
+          <div class="meta-row">
+            ${p.owner?`<span class="meta-item">👤 ${p.owner}</span>`:''}
+            ${p.startDate?`<span class="meta-item">📅 ${p.startDate}${p.dueDate?' → '+p.dueDate:''}</span>`:''}
+            <span class="meta-item">📋 ${(p.phases||[]).length} 個階段 / ${(p.phases||[]).flatMap(ph=>ph.tasks||[]).length} 個任務</span>
+          </div>
+        </div>
+        <div class="proj-header-actions">
+          <button onclick="event.stopPropagation();toggleStar(${pi})" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px">${p.starred?'⭐':'☆'}</button>
+          <button onclick="event.stopPropagation();openProjModal(${pi})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.82rem;padding:4px" title="編輯">✏️</button>
+          <button onclick="event.stopPropagation();deleteProj(${pi})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:.82rem;padding:4px" title="刪除">🗑</button>
+          <span class="toggle-icon" onclick="toggleCard(${pi})">▼</span>
+        </div>
+      </div>
+      <div class="proj-progress">
+        <div class="pp-row">
+          <span class="pp-label">整體進度</span>
+          <div class="pp-bg"><div class="pp-fill" style="width:${pct}%;background:${pctColor(pct)}"></div></div>
+          <span class="pp-pct" style="color:${pctColor(pct)}">${pct}%</span>
+        </div>
+      </div>
+      <div class="phases" id="phases-${pi}">
+        ${phasesHtml}
+        <div class="add-phase-row"><button onclick="addPhase(${pi})">＋ 新增階段</button></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 綁定任務負責人 Tag + 拖曳排序
+  setTimeout(()=>{
+    DATA.projects.forEach((p,pi)=>{
+      (p.phases||[]).forEach((ph,phi)=>{
+        (ph.tasks||[]).forEach((t,ti)=>{
+          const id=`taskperson-${pi}-${phi}-${ti}`;
+          const el=document.getElementById(id);
+          if(el&&!el.dataset.bound){
+            initTagInput(id, parseTags(t.person||''), DATA.members, vals=>{
+              DATA.projects[pi].phases[phi].tasks[ti].person=fmtTags(vals)||'';
+              saveData();
+            });
+            el.dataset.bound='1';
+          }
+        });
+        if((ph.tasks||[]).length>0) initTaskDragSort(pi,phi);
+      });
+      if(_openCards.has(pi)) initPhaseDragSort(pi);
+    });
+  },0);
+
+  renderSidebar();
+  setMainHeight();
+}
+
+// ══════════════════════════════════════════════════════
+//  今日儀表板 — 任務層級到期提醒
+// ══════════════════════════════════════════════════════
+// 渲染今日儀表板（逾期、本週、即將到期的任務）
+function renderSidebar(){
+  const today=todayStr();
+  const weekEnd=new Date(); weekEnd.setDate(weekEnd.getDate()+7);
+  const weekEndStr=weekEnd.toISOString().split('T')[0];
+  const upcoming=new Date(); upcoming.setDate(upcoming.getDate()+14);
+  const upcomingStr=upcoming.toISOString().split('T')[0];
+
+  const allTasks=[];
+  DATA.projects.forEach((p,pi)=>{
+    (p.phases||[]).forEach((ph,phi)=>{
+      (ph.tasks||[]).forEach((t,ti)=>{
+        if(t.status!=='已完成'&&t.dueDate){
+          allTasks.push({...t,projName:p.name,projId:p.id,phaseName:ph.name,pi,phi,ti});
+        }
+      });
+    });
+  });
+
+  const overdue=allTasks.filter(t=>t.dueDate<today);
+  const thisweek=allTasks.filter(t=>t.dueDate>=today&&t.dueDate<=weekEndStr);
+  const soon=allTasks.filter(t=>t.dueDate>weekEndStr&&t.dueDate<=upcomingStr);
+
+  const mkItem=(t,cls)=>`<div class="sb-item ${cls}" onclick="jumpToCard(${t.pi})">
+    <div class="sb-proj">${t.projId} ${t.projName}</div>
+    <div class="sb-phase">📁 ${t.phaseName}</div>
+    <div class="sb-name">${t.name}</div>
+    <div class="sb-date">${t.person?'👤 '+t.person+'　':''} 📅 ${t.dueDate}</div>
+  </div>`;
+
+  document.getElementById('sidebarContent').innerHTML=
+    `<div class="today-badge">今日 ${today}</div>`+
+    (overdue.length?`<div class="sb-section"><div class="sb-section-title overdue">🔴 逾期 (${overdue.length})</div>${overdue.map(t=>mkItem(t,'overdue')).join('')}</div>`:`<div class="sb-section"><div class="sb-section-title overdue">🔴 逾期</div><div class="sb-empty">無逾期任務 ✅</div></div>`)+
+    (thisweek.length?`<div class="sb-section"><div class="sb-section-title thisweek">🟠 本週到期 (${thisweek.length})</div>${thisweek.map(t=>mkItem(t,'thisweek')).join('')}</div>`:'')+
+    (soon.length?`<div class="sb-section"><div class="sb-section-title upcoming">🟢 14天內 (${soon.length})</div>${soon.map(t=>mkItem(t,'upcoming')).join('')}</div>`:'');
+}
+
+// 點擊儀表板項目捲動到對應專案卡片
+function jumpToCard(pi){
+  _openCards.add(pi); render();
+  setTimeout(()=>{ const el=document.getElementById(`proj-${pi}`); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },100);
+}
+
+// ══════════════════════════════════════════════════════
+//  側欄切換
+// ══════════════════════════════════════════════════════
+// 切換今日儀表板側欄展開/收合
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const btn=document.getElementById('sidebarOpenBtn');
+  const bc=document.getElementById('boardCol');
+  const collapsed=sb.classList.toggle('collapsed');
+  btn.style.display=collapsed?'block':'none';
+  bc.style.right=collapsed?'0':'300px';
+}
+
+// ══════════════════════════════════════════════════════
+//  版面高度計算
+// ══════════════════════════════════════════════════════
+// 計算並設定主內容區高度
+function setMainHeight(){
+  const hdr=document.querySelector('header');
+  const qz=document.getElementById('mainZone').previousElementSibling;
+  const hh=hdr?hdr.offsetHeight:0;
+  const qh=qz?qz.offsetHeight:0;
+  const h=window.innerHeight-hh-qh;
+  document.getElementById('mainZone').style.height=h+'px';
+}
+
+// ══════════════════════════════════════════════════════
+//  匯入 / 匯出 xlsx
+// ══════════════════════════════════════════════════════
+// 格式化日期值（Excel 序列或字串 → yyyy-mm-dd）
+function fmtDate(val){
+  if(!val) return '';
+  if(typeof val==='number'){ const d=new Date(Math.round((val-25569)*86400*1000)); return d.toISOString().split('T')[0]; }
+  const s=String(val).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d=new Date(s); if(!isNaN(d)) return d.toISOString().split('T')[0];
+  return s;
+}
+// 處理拖放檔案匯入事件
+function handleDrop(e){ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) processXlsx(f); }
+// 處理 xlsx 選擇匯入事件
+function importXlsx(e){ const f=e.target.files[0]; if(f) processXlsx(f); e.target.value=''; }
+// 解析 xlsx 並匯入專案資料
+function processXlsx(file){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const map={},order=[];
+      rows.forEach(row=>{
+        const pid=String(row['專案編號']||'').trim(); if(!pid) return;
+        if(!map[pid]){ order.push(pid); map[pid]={id:pid,name:String(row['專案名稱']||''),type:String(row['專案類型']||''),owner:String(row['負責人']||''),members:String(row['成員']||''),status:String(row['狀態']||'待開始'),startDate:fmtDate(row['開始日']),dueDate:fmtDate(row['完成日']),actualDate:fmtDate(row['實際完成日']),notes:String(row['備註']||''),createdDate:'',lastUpdated:'',phases:[],starred:false}; }
+        const phName=String(row['階段名稱']||'').trim();
+        const taskName=String(row['任務名稱']||'').trim();
+        if(!phName) return;
+        let ph=map[pid].phases.find(p=>p.name===phName);
+        if(!ph){ ph={name:phName,status:String(row['階段狀態']||'待開始'),startDate:fmtDate(row['階段開始日']),dueDate:fmtDate(row['階段完成日']),tasks:[]}; map[pid].phases.push(ph); }
+        if(taskName) ph.tasks.push({name:taskName,person:String(row['任務負責人']||''),status:String(row['任務狀態']||'待開始'),startDate:fmtDate(row['任務開始日']),dueDate:fmtDate(row['任務完成日']),actualDate:fmtDate(row['任務實際完成']),pct:parseInt(String(row['任務完成率']||'0').replace('%',''))||0,note:String(row['任務備註']||'')});
+      });
+      const imported=order.map(id=>map[id]).filter(Boolean);
+      if(!imported.length){ alert('找不到有效資料，請確認欄位標題正確'); return; }
+      if(confirm(`找到 ${imported.length} 個專案，要取代現有資料嗎？
+（取消 = 合併匯入）`)) DATA.projects=imported;
+      else DATA.projects=[...DATA.projects,...imported.filter(np=>!DATA.projects.find(op=>op.id===np.id))];
+      // Sheet2 成員
+      if(wb.SheetNames[1]){ const mrows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]],{header:1}); const ms=mrows.flat().map(m=>String(m).trim()).filter(Boolean); if(ms.length) DATA.members=[...new Set([...DATA.members,...ms])]; }
+      saveData(); render(); showToast(`✅ 成功匯入 ${imported.length} 個專案`);
+    }catch(e){ alert('匯入失敗：'+e.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+// 匯出所有專案資料為 xlsx
+function exportXlsx(){
+  const rows=[];
+  DATA.projects.forEach(p=>{
+    const base={'專案編號':p.id,'專案名稱':p.name,'專案類型':p.type||'','負責人':p.owner||'','成員':p.members||'','狀態':p.status,'開始日':p.startDate,'完成日':p.dueDate,'實際完成日':p.actualDate,'備註':p.notes||''};
+    if(!(p.phases||[]).length){ rows.push(base); return; }
+    p.phases.forEach(ph=>{
+      if(!(ph.tasks||[]).length){ rows.push({...base,'階段名稱':ph.name,'階段狀態':ph.status,'階段開始日':ph.startDate,'階段完成日':ph.dueDate}); return; }
+      ph.tasks.forEach(t=>rows.push({...base,'階段名稱':ph.name,'階段狀態':ph.status,'階段開始日':ph.startDate,'階段完成日':ph.dueDate,'任務名稱':t.name,'任務負責人':t.person||'','任務狀態':t.status,'任務開始日':t.startDate,'任務完成日':t.dueDate,'任務實際完成':t.actualDate,'任務完成率':(t.pct||0)+'%','任務備註':t.note||''}));
+    });
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'專案資料');
+  const ws2=XLSX.utils.aoa_to_sheet([['成員名稱'],...DATA.members.map(m=>[m])]);
+  XLSX.utils.book_append_sheet(wb,ws2,'成員清單');
+  XLSX.writeFile(wb,`專案管理看板_${todayStr()}.xlsx`);
+}
+
+// ══════════════════════════════════════════════════════
+//  Toast 通知
+// ══════════════════════════════════════════════════════
+// 顯示短暫通知訊息
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+
+
+
+// ══════════════════════════════════════════════════════
+//  階段拖曳排序（限 ⠿ 把手）
+// ══════════════════════════════════════════════════════
+// 初始化階段拖曳排序，讓階段可以在專案內拖曳調整順序
+function initPhaseDragSort(pi){
+  const container=document.getElementById(`phases-${pi}`);
+  if(!container) return;
+  let dragPhi=null;
+  container.querySelectorAll('.phase-drag-handle').forEach(handle=>{
+    handle.addEventListener('mousedown',()=>{
+      const block=handle.closest('.phase-block');
+      if(block) block.draggable=true;
+    });
+  });
+  container.addEventListener('dragstart',e=>{
+    const block=e.target.closest('.phase-block[data-phi]');
+    if(!block) return;
+    dragPhi=parseInt(block.dataset.phi);
+    block.classList.add('dragging-row');
+    e.dataTransfer.effectAllowed='move';
+  });
+  container.addEventListener('dragend',e=>{
+    const block=e.target.closest('.phase-block');
+    if(block){ block.classList.remove('dragging-row'); block.draggable=false; }
+    container.querySelectorAll('.phase-block').forEach(b=>b.classList.remove('drag-over-top','drag-over-bot'));
+    dragPhi=null;
+  });
+  container.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const block=e.target.closest('.phase-block[data-phi]');
+    if(!block) return;
+    const overPhi=parseInt(block.dataset.phi);
+    if(overPhi===dragPhi) return;
+    container.querySelectorAll('.phase-block').forEach(b=>b.classList.remove('drag-over-top','drag-over-bot'));
+    const rect=block.getBoundingClientRect();
+    block.classList.add(e.clientY<rect.top+rect.height/2?'drag-over-top':'drag-over-bot');
+  });
+  container.addEventListener('drop',e=>{
+    e.preventDefault();
+    const block=e.target.closest('.phase-block[data-phi]');
+    if(!block||dragPhi===null) return;
+    const overPhi=parseInt(block.dataset.phi);
+    if(overPhi===dragPhi) return;
+    const rect=block.getBoundingClientRect();
+    const insertAfter=e.clientY>=rect.top+rect.height/2;
+    const phases=DATA.projects[pi].phases;
+    const [moved]=phases.splice(dragPhi,1);
+    let idx=overPhi>dragPhi?overPhi-1:overPhi;
+    if(insertAfter) idx++;
+    phases.splice(idx,0,moved);
+    saveData(); render();
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  工作天週數計算
+// ══════════════════════════════════════════════════════
+// 計算兩日期之間的工作天數（週一到週五），不含假日 API（純星期判斷）
+function countWorkdays(start, end){
+  if(!start||!end||start>end) return 0;
+  let s=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00');
+  let count=0;
+  while(s<=e){
+    const d=s.getDay();
+    if(d!==0&&d!==6) count++;
+    s.setDate(s.getDate()+1);
+  }
+  return count;
+}
+// 將工作天數換算為週數（5工作天=1週，無條件進位）
+function workdaysToWeeks(days){ return Math.ceil(days/5); }
+// 格式化工期標籤（工作天 + 週數）
+function fmtDuration(start, end){
+  const days=countWorkdays(start,end);
+  if(!days) return '';
+  const weeks=workdaysToWeeks(days);
+  return days<=5?`${days} 天`:`${weeks} 週（${days} 工作天）`;
+}
+
+
+// ══════════════════════════════════════════════════════
+//  甘特圖
+// ══════════════════════════════════════════════════════
+// 開啟甘特圖 Modal，預設顯示所有專案
+function openGantt(){
+  buildGantt();
+  openModal('ganttOverlay');
+}
+// 建立甘特圖 HTML（時間軸 + 所有專案/階段/任務 Bar）
+function buildGantt(){
+  const projs=DATA.projects.filter(p=>p.phases&&p.phases.length>0);
+  if(!projs.length){ document.getElementById('ganttBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3)">目前沒有專案資料</div>'; return; }
+
+  // 收集全域日期範圍
+  let minDate=null, maxDate=null;
+  projs.forEach(p=>{
+    [p.startDate,p.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; });
+    (p.phases||[]).forEach(ph=>{
+      [ph.startDate,ph.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; });
+      (ph.tasks||[]).forEach(t=>{
+        [t.startDate,t.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; });
+      });
+    });
+  });
+  if(!minDate){ document.getElementById('ganttBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3)">請先為專案/任務填入日期</div>'; return; }
+
+  // 擴展前後各 3 天 buffer
+  const sd=new Date(minDate+'T00:00:00'); sd.setDate(sd.getDate()-3);
+  const ed=new Date(maxDate+'T00:00:00'); ed.setDate(ed.getDate()+3);
+
+  // 產生日期陣列
+  const days=[]; let cur=new Date(sd);
+  while(cur<=ed){ days.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
+  const today=todayStr();
+  const dayStr=d=>d.toISOString().split('T')[0];
+
+  // 月份群組
+  const months=[];
+  days.forEach((d,i)=>{
+    const mk=d.getFullYear()+'-'+(d.getMonth()+1);
+    if(!months.length||months[months.length-1].key!==mk) months.push({key:mk,label:`${d.getFullYear()}/${d.getMonth()+1}月`,start:i,count:0});
+    months[months.length-1].count++;
+  });
+
+  // 顏色對應
+  const statusColor={待開始:'#aeaeb2',進行中:'#007aff',已完成:'#34c759',擱置:'#ff3b30'};
+  const phaseColors=['#007aff','#af52de','#ff9500','#34c759','#ff2d55','#5ac8fa','#ffcc00','#30d158'];
+
+  // Bar 計算
+  function barCols(start,end){
+    if(!start||!end) return null;
+    const si=days.findIndex(d=>dayStr(d)>=start);
+    const ei=days.findIndex(d=>dayStr(d)>=end);
+    if(si<0) return null;
+    const endIdx=ei<0?days.length-1:ei;
+    return {left:si, width:Math.max(1,endIdx-si+1)};
+  }
+
+  // thead：月份列
+  let thead=`<tr class="gantt-head-sticky"><th class="g-label" style="width:220px;min-width:220px" rowspan="2">專案 / 階段 / 任務</th>`;
+  months.forEach(m=>{ thead+=`<th class="g-head-month" colspan="${m.count}">${m.label}</th>`; });
+  thead+=`</tr><tr class="gantt-head-sticky">`;
+  days.forEach(d=>{ const ds=dayStr(d); const isWE=d.getDay()===0||d.getDay()===6; thead+=`<th class="g-head-day ${ds===today?'today':''} ${isWE?'weekend':''}">${d.getDate()}</th>`; });
+  thead+=`</tr>`;
+
+  // tbody
+  let tbody='';
+  projs.forEach(p=>{
+    // 專案列
+    const pb=barCols(p.startDate,p.dueDate);
+    const pPct=calcProjProgress(p);
+    tbody+=`<tr><td class="g-label" title="${p.name}"><b>${p.id}</b> ${p.name}</td>`;
+    days.forEach((d,i)=>{
+      const ds=dayStr(d); const isWE=d.getDay()===0||d.getDay()===6;
+      const isTd=ds===today;
+      if(pb&&i===pb.left){
+        const bg=statusColor[p.status]||'#aeaeb2';
+        tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}" colspan="${pb.width}" style="padding:0">
+          <div class="g-bar proj ${p.status==='已完成'?'done':''}" style="width:100%;background:linear-gradient(90deg,${bg} ${pPct}%,rgba(174,174,178,.25) ${pPct}%)" title="${p.name} ${p.status} ${pPct}%"></div>
+        </td>`;
+      } else if(!pb||i<pb.left||i>pb.left+pb.width-1){
+        tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}"></td>`;
+      }
+    });
+    tbody+=`</tr>`;
+
+    // 階段列
+    (p.phases||[]).forEach((ph,phi)=>{
+      const phb=barCols(ph.startDate,ph.dueDate);
+      const phPct=calcPhaseProgress(ph);
+      const phColor=phaseColors[phi%phaseColors.length];
+      const dur=fmtDuration(ph.startDate,ph.dueDate);
+      tbody+=`<tr><td class="g-label phase" title="${ph.name}">📁 ${ph.name}${dur?` <span style='color:var(--text3);font-size:.65rem'>(${dur})</span>`:''}
+      </td>`;
+      days.forEach((d,i)=>{
+        const ds=dayStr(d); const isWE=d.getDay()===0||d.getDay()===6; const isTd=ds===today;
+        if(phb&&i===phb.left){
+          tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}" colspan="${phb.width}" style="padding:0">
+            <div class="g-bar phase-bar ${ph.status==='已完成'?'done':''}" style="width:100%;background:linear-gradient(90deg,${phColor} ${phPct}%,rgba(174,174,178,.22) ${phPct}%);box-shadow:0 1px 4px rgba(0,0,0,.1)" title="${ph.name} ${ph.status} ${phPct}%"></div>
+          </td>`;
+        } else if(!phb||i<phb.left||i>phb.left+phb.width-1){
+          tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}"></td>`;
+        }
+      });
+      tbody+=`</tr>`;
+
+      // 任務列
+      (ph.tasks||[]).forEach((t,ti)=>{
+        const tb=barCols(t.startDate,t.dueDate);
+        const pc=t.status==='已完成'?100:(t.pct||0);
+        const tc=statusColor[t.status]||'#aeaeb2';
+        tbody+=`<tr><td class="g-label task" title="${t.name}">↳ ${t.name}${t.person?` <span style='color:var(--text3);font-size:.62rem'>👤${t.person}</span>`:''}</td>`;
+        days.forEach((d,i)=>{
+          const ds=dayStr(d); const isWE=d.getDay()===0||d.getDay()===6; const isTd=ds===today;
+          if(tb&&i===tb.left){
+            tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}" colspan="${tb.width}" style="padding:0">
+              <div class="g-bar ${t.status==='已完成'?'done':''}" style="width:100%;background:linear-gradient(90deg,${tc} ${pc}%,rgba(174,174,178,.2) ${pc}%)" title="${t.name} ${t.status} ${pc}%"></div>
+            </td>`;
+          } else if(!tb||i<tb.left||i>tb.left+tb.width-1){
+            tbody+=`<td class="g-cell ${isWE?'weekend':''} ${isTd?'today-col':''}"></td>`;
+          }
+        });
+        tbody+=`</tr>`;
+      });
+    });
+  });
+
+  document.getElementById('ganttBody').innerHTML=`
+    <div class="gantt-legend">
+      <span><span class="dot" style="background:#aeaeb2"></span>待開始</span>
+      <span><span class="dot" style="background:#007aff"></span>進行中</span>
+      <span><span class="dot" style="background:#34c759"></span>已完成</span>
+      <span><span class="dot" style="background:#ff3b30"></span>擱置</span>
+      <span style="margin-left:8px;color:var(--text3)">■ 色條填充 = 完成率　□ 灰色 = 剩餘　直欄陰影 = 週末</span>
+    </div>
+    <div class="gantt-wrap">
+      <table class="gantt-table">
+        <thead>${thead}</thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>`;
+}
+// 匯出甘特圖為 xlsx（使用 ExcelJS 填色）
+async function exportGanttXlsx(){
+  const btn=document.getElementById('ganttExportBtn');
+  btn.disabled=true; btn.textContent='匯出中…';
+  try{
+    const projs=DATA.projects.filter(p=>p.phases&&p.phases.length>0);
+    if(!projs.length){ showToast('沒有資料可以匯出'); btn.disabled=false; btn.textContent='📥 匯出 xlsx'; return; }
+    let minDate=null,maxDate=null;
+    projs.forEach(p=>{
+      [p.startDate,p.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; });
+      (p.phases||[]).forEach(ph=>{
+        [ph.startDate,ph.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; });
+        (ph.tasks||[]).forEach(t=>{ [t.startDate,t.dueDate].forEach(d=>{ if(!d) return; if(!minDate||d<minDate) minDate=d; if(!maxDate||d>maxDate) maxDate=d; }); });
+      });
+    });
+    if(!minDate){ showToast('請先填入日期'); btn.disabled=false; btn.textContent='📥 匯出 xlsx'; return; }
+    const sd=new Date(minDate+'T00:00:00'); sd.setDate(sd.getDate()-2);
+    const ed=new Date(maxDate+'T00:00:00'); ed.setDate(ed.getDate()+2);
+    const days=[]; let cur=new Date(sd);
+    while(cur<=ed){ days.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
+    const today=todayStr();
+    const dayStr=d=>d.toISOString().split('T')[0];
+    const wb=new ExcelJS.Workbook();
+    const ws=wb.addWorksheet('甘特圖',{views:[{state:'frozen',xSplit:1,ySplit:2}]});
+    const LABEL_W=32; const DAY_W=3.2;
+    ws.getColumn(1).width=LABEL_W;
+    days.forEach((_,i)=>{ ws.getColumn(i+2).width=DAY_W; });
+    const hdrCell=(text,fill,bold=true)=>({value:text,style:{font:{bold,size:9,name:'微軟正黑體'},alignment:{horizontal:'center',vertical:'middle'},fill:{type:'pattern',pattern:'solid',fgColor:{argb:fill}},border:{bottom:{style:'thin',color:{argb:'FFD2D2D7'}}}}});
+    // 月份列
+    const monthRow=['專案/階段/任務'];
+    const monthMerges=[];
+    let colIdx=2;
+    const months=[];
+    days.forEach(d=>{ const mk=d.getFullYear()+'-'+(d.getMonth()+1); if(!months.length||months[months.length-1].key!==mk) months.push({key:mk,label:`${d.getFullYear()}/${d.getMonth()+1}月`,start:colIdx,count:0}); months[months.length-1].count++; colIdx++; });
+    months.forEach(m=>{ for(let i=0;i<m.count;i++) monthRow.push(i===0?m.label:''); monthMerges.push({s:{r:1,c:m.start-1},e:{r:1,c:m.start+m.count-2}}); });
+    ws.addRow(monthRow);
+    monthMerges.forEach(m=>ws.mergeCells(m.s.r,m.s.c+1,m.e.r,m.e.c+1));
+    ws.getRow(1).height=16;
+    ws.getRow(1).eachCell((cell,ci)=>{ if(ci===1){cell.value='專案/階段/任務';cell.font={bold:true,size:9,name:'微軟正黑體'};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE5E5EA'}};} else{ cell.font={bold:true,size:8,name:'微軟正黑體'};cell.alignment={horizontal:'center'};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE5E5EA'}}; } });
+    // 日期列
+    const dayRow=[''];
+    days.forEach(d=>dayRow.push(d.getDate()));
+    ws.addRow(dayRow);
+    ws.getRow(2).height=14;
+    ws.getRow(2).eachCell((cell,ci)=>{ if(ci===1) return; const d=days[ci-2]; if(!d) return; const ds=dayStr(d); const isWE=d.getDay()===0||d.getDay()===6; cell.font={size:8,name:'微軟正黑體',bold:ds===today,color:{argb:ds===today?'FFFF3B30':isWE?'FFAEAEB2':'FF8E8E93'}}; cell.alignment={horizontal:'center'}; cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:isWE?'FFF2F2F7':'FFE5E5EA'}}; });
+    // 資料列
+    const statusArgb={待開始:'FFAEAEB2',進行中:'FF007AFF',已完成:'FF34C759',擱置:'FFFF3B30'};
+    const phaseArgbs=['FF007AFF','FFAF52DE','FFFF9500','FF34C759','FFFF2D55','FF5AC8FA','FFFFCC00','FF30D158'];
+    let rowNum=3;
+    projs.forEach(p=>{
+      const rowData=[`${p.id} ${p.name}`,...days.map(()=>'')];
+      ws.addRow(rowData);
+      ws.getRow(rowNum).height=18;
+      const pRowObj=ws.getRow(rowNum);
+      pRowObj.getCell(1).font={bold:true,size:9,name:'微軟正黑體'};
+      pRowObj.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8F4F5'}};
+      // 塗色
+      if(p.startDate&&p.dueDate){
+        const si=days.findIndex(d=>dayStr(d)>=p.startDate)+2;
+        const ei=days.findIndex(d=>dayStr(d)>=p.dueDate);
+        const endCol=ei<0?days.length+1:ei+2;
+        const color=statusArgb[p.status]||'FFAEAEB2';
+        for(let ci=si;ci<=endCol;ci++){
+          const cell=pRowObj.getCell(ci);
+          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:color+'40'}};
+        }
+      }
+      // 週末塗色
+      days.forEach((d,di)=>{ if(d.getDay()===0||d.getDay()===6){ const cell=pRowObj.getCell(di+2); if(!cell.fill||cell.fill.fgColor?.argb==='FF000000'||!cell.fill.fgColor) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F2F7'}}; } });
+      rowNum++;
+      (p.phases||[]).forEach((ph,phi)=>{
+        const phRow=[`  📁 ${ph.name}`,...days.map(()=>'')];
+        ws.addRow(phRow);
+        ws.getRow(rowNum).height=16;
+        const phRowObj=ws.getRow(rowNum);
+        phRowObj.getCell(1).font={italic:true,size:9,name:'微軟正黑體',color:{argb:'FF007AFF'}};
+        phRowObj.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F4FF'}};
+        if(ph.startDate&&ph.dueDate){
+          const si=days.findIndex(d=>dayStr(d)>=ph.startDate)+2;
+          const ei=days.findIndex(d=>dayStr(d)>=ph.dueDate);
+          const endCol=ei<0?days.length+1:ei+2;
+          const phC=phaseArgbs[phi%phaseArgbs.length];
+          for(let ci=si;ci<=endCol;ci++){
+            phRowObj.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:phC+'55'}};
+          }
+        }
+        days.forEach((d,di)=>{ if(d.getDay()===0||d.getDay()===6){ const cell=phRowObj.getCell(di+2); if(!cell.fill?.fgColor||cell.fill.fgColor.argb==='FF000000') cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F2F7'}}; } });
+        rowNum++;
+        (ph.tasks||[]).forEach(t=>{
+          const tRow=[`    ↳ ${t.name}${t.person?' 👤'+t.person:''}`,...days.map(()=>'')];
+          ws.addRow(tRow);
+          ws.getRow(rowNum).height=14;
+          const tRowObj=ws.getRow(rowNum);
+          tRowObj.getCell(1).font={size:8,name:'微軟正黑體'};
+          if(t.startDate&&t.dueDate){
+            const si=days.findIndex(d=>dayStr(d)>=t.startDate)+2;
+            const ei=days.findIndex(d=>dayStr(d)>=t.dueDate);
+            const endCol=ei<0?days.length+1:ei+2;
+            const tc=statusArgb[t.status]||'FFAEAEB2';
+            for(let ci=si;ci<=endCol;ci++){
+              tRowObj.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:tc+'60'}};
+            }
+          }
+          days.forEach((d,di)=>{ if(d.getDay()===0||d.getDay()===6){ const cell=tRowObj.getCell(di+2); if(!cell.fill?.fgColor||cell.fill.fgColor.argb==='FF000000') cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F2F7'}}; } });
+          rowNum++;
+        });
+      });
+    });
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`甘特圖_${todayStr()}.xlsx`; a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ 甘特圖 xlsx 匯出完成');
+  } catch(e){ showToast('匯出失敗：'+e.message); console.error(e); }
+  btn.disabled=false; btn.textContent='📥 匯出 xlsx';
+}
+
+// ══════════════════════════════════════════════════════
+//  初始化
+// ══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  initTheme();
+  render();
+  window.addEventListener('resize',setMainHeight);
+  setMainHeight();
+});
+</script>
+</body>
+</html>
