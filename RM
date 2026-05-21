@@ -1,0 +1,2808 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM 需求單管理看板 v34</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f7;--surface:#fff;--surface2:#f2f2f7;--border:#d2d2d7;
+  --text:#1d1d1f;--text2:#6e6e73;--text3:#aeaeb2;
+  --accent:#007aff;--green:#34c759;--red:#ff3b30;--orange:#ff9500;--purple:#af52de;
+  --shadow-s:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-m:0 4px 16px rgba(0,0,0,.10);--shadow-l:0 8px 32px rgba(0,0,0,.14);
+  --rs:8px;--rm:12px;--rl:16px;--rxl:20px;
+}
+body.dark{
+  --bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--border:#4a4a4c;
+  --text:#f5f5f7;--text2:#d1d1d6;--text3:#8e8e93;
+  --shadow-s:0 1px 3px rgba(0,0,0,.5);--shadow-m:0 4px 16px rgba(0,0,0,.5);--shadow-l:0 8px 32px rgba(0,0,0,.6);
+}
+body{font-family:-apple-system,"SF Pro Text","Microsoft JhengHei","Segoe UI",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;transition:background .3s,color .3s;margin:0}
+
+/* Header */
+header{background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:13px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-s);z-index:200;flex-shrink:0}
+body.dark header{background:rgba(28,28,30,.92)}
+header h1{font-size:1.15rem;font-weight:700;letter-spacing:-.3px;color:var(--text)}
+header .subtitle{font-size:.72rem;color:var(--text2);margin-top:2px}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.save-ind{font-size:.72rem;background:var(--surface2);color:var(--text2);padding:4px 12px;border-radius:20px;border:1px solid var(--border)}
+.theme-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 14px;cursor:pointer;font-size:.78rem;color:var(--text2);transition:all .2s}
+.theme-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Toolbar */
+.toolbar{background:var(--surface);padding:10px 28px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.toolbar label{font-size:.8rem;color:var(--text2)}
+.toolbar select{border:1px solid var(--border);border-radius:var(--rs);padding:6px 10px;font-size:.8rem;outline:none;background:var(--surface2);color:var(--text)}
+.toolbar select:focus{border-color:var(--accent)}
+
+/* Buttons */
+.btn{background:var(--accent);color:#fff;border:none;border-radius:var(--rs);padding:7px 16px;cursor:pointer;font-size:.8rem;font-weight:500;transition:all .18s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:var(--shadow-s)}
+.btn:active{transform:translateY(0);filter:brightness(.95)}
+.btn.green{background:var(--green)}
+.btn.gray{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn.gray:hover{background:var(--border);filter:none;transform:none}
+.btn.red{background:var(--red)}
+.btn.purple{background:var(--purple)}
+
+/* Stats */
+.stats-bar{display:flex;gap:12px;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.stat-card{background:var(--surface2);border-radius:var(--rm);padding:10px 20px;text-align:center;min-width:86px;border:1px solid var(--border);transition:transform .15s,box-shadow .15s,background .15s;cursor:default}
+.stat-card[onclick]:hover{transform:translateY(-2px);box-shadow:var(--sh2);background:var(--surface)}
+.stat-card[onclick]:active{transform:translateY(0)}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-m)}
+.stat-card .num{font-size:1.55rem;font-weight:700;color:var(--accent)}
+.stat-card.or .num{color:var(--orange)}.stat-card.gr .num{color:var(--green)}.stat-card.rd .num{color:var(--red)}
+.stat-card .lbl{font-size:.7rem;color:var(--text2);margin-top:2px}
+
+/* Cards */
+.container{padding:20px 28px}
+.req-card{background:var(--surface);border-radius:var(--rl);margin-bottom:14px;box-shadow:var(--shadow-s);border:1px solid var(--border);overflow:hidden;transition:box-shadow .2s,transform .2s}
+.req-card:hover{box-shadow:var(--shadow-m);transform:translateY(-1px)}
+.req-card[data-status="進行中"]{border-left:4px solid var(--accent)}
+.req-card[data-status="待開始"]{border-left:4px solid var(--text3)}
+.req-card[data-status="已完成"]{border-left:4px solid var(--green)}
+.req-card[data-status="擱置"]{border-left:4px solid var(--red)}
+.req-header{padding:14px 18px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.req-header-left{display:flex;flex-direction:column;gap:6px;flex:1;cursor:pointer}
+.req-header-left:hover .req-title{color:var(--accent)}
+.req-header-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.req-id{font-size:.7rem;color:var(--text3);font-family:"SF Mono","Menlo",monospace}
+.req-title{font-weight:600;font-size:.96rem;color:var(--text)}
+.badge{font-size:.68rem;padding:3px 10px;border-radius:20px;font-weight:600;white-space:nowrap}
+.b-進行中{background:rgba(0,122,255,.12);color:var(--accent)}
+.b-待開始{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.b-已完成{background:rgba(52,199,89,.12);color:var(--green)}
+.b-擱置{background:rgba(255,59,48,.12);color:var(--red)}
+.b-type{background:rgba(255,149,0,.12);color:var(--orange)}
+.meta-row{display:flex;gap:14px;flex-wrap:wrap}
+.meta-item{font-size:.74rem;color:var(--text2)}
+.toggle-icon{font-size:.88rem;color:var(--text3);cursor:pointer;padding:4px 8px;margin-top:2px;transition:transform .2s}
+.req-card.open .toggle-icon{transform:rotate(180deg)}
+
+/* Dual Progress */
+.dual-wrap{display:flex;flex-direction:column;gap:4px;min-width:200px;margin-top:2px}
+.dp-row{display:flex;align-items:center;gap:8px}
+.dp-label{font-size:.68rem;color:var(--text3);width:52px;text-align:right;flex-shrink:0}
+.dp-bg{flex:1;height:5px;background:var(--surface2);border-radius:10px;overflow:hidden}
+.dp-fill-actual{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--accent),#5ac8fa);transition:width .4s}
+.dp-fill-expect{height:100%;border-radius:10px;background:repeating-linear-gradient(90deg,var(--orange) 0,var(--orange) 4px,transparent 4px,transparent 8px)}
+.dp-pct{font-size:.7rem;font-weight:600;min-width:32px}
+.dp-pct.a{color:var(--accent)}.dp-pct.e{color:var(--orange)}
+.tag-ahead{font-size:.66rem;background:rgba(52,199,89,.12);color:var(--green);padding:1px 8px;border-radius:8px}
+.tag-behind{font-size:.66rem;background:rgba(255,59,48,.12);color:var(--red);padding:1px 8px;border-radius:8px}
+.tag-ok{font-size:.66rem;background:rgba(0,122,255,.12);color:var(--accent);padding:1px 8px;border-radius:8px}
+
+/* Subtasks */
+.subtasks{display:none;border-top:1px solid var(--border)}
+.req-card.open .subtasks{display:block}
+.st-table-wrap{width:100%;overflow-x:auto}
+.st-table{width:auto;min-width:100%;border-collapse:collapse;table-layout:fixed}
+.st-table thead tr{background:var(--surface2)}
+.st-table thead th{padding:7px 10px;font-size:.68rem;color:var(--text2);font-weight:600;text-align:left;white-space:nowrap;position:relative;user-select:none;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.st-table thead th:last-child{border-right:none}
+.st-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+.st-table tbody tr:hover{background:var(--surface2)}
+.st-table tbody tr.dimmed{opacity:.55;background:rgba(52,199,89,.06)}
+.st-table tbody tr.highlighted{background:rgba(255,149,0,.07)!important;opacity:1!important}
+.st-table td{padding:7px 8px;vertical-align:middle;overflow:hidden;font-size:.8rem;color:var(--text)}
+.rz{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;background:transparent;z-index:2}
+.rz:hover,.rz.dragging{background:var(--accent);opacity:.5}
+.drag-handle{width:28px;min-width:28px;cursor:grab;text-align:center;color:var(--text3);font-size:.85rem;user-select:none;padding:0 2px}
+.drag-handle:active{cursor:grabbing}
+.drag-handle:hover{color:var(--accent)}
+tr.drag-over-top{box-shadow:inset 0 2px 0 var(--accent)}
+tr.drag-over-bot{box-shadow:inset 0 -2px 0 var(--accent)}
+tr.dragging-row{opacity:.35}
+.colw-inline{color:var(--text3);font-weight:600;font-size:11px}
+.rz-popup{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--rm);padding:10px 14px;box-shadow:var(--shadow-l);z-index:9999;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text)}
+.rz-popup input{width:60px;border:1px solid var(--border);border-radius:var(--rs);padding:4px 6px;font-size:.8rem;outline:none;text-align:center;background:var(--surface2);color:var(--text)}
+.rz-popup input:focus{border-color:var(--accent)}
+.rz-popup button{background:var(--accent);color:#fff;border:none;border-radius:var(--rs);padding:4px 10px;cursor:pointer}
+.person-tag{display:inline-block;font-size:.68rem;background:rgba(0,122,255,.1);color:var(--accent);padding:2px 8px;border-radius:12px;margin:1px;cursor:pointer;white-space:nowrap;transition:all .15s}
+.person-tag:hover{background:var(--accent);color:#fff}
+.di{font-size:.74rem;border:1px solid var(--border);border-radius:var(--rs);padding:3px 5px;outline:none;color:var(--text);background:var(--surface2);width:100%;transition:border-color .2s}
+.di:focus{border-color:var(--accent);background:var(--surface)}
+.di.done-date{background:rgba(52,199,89,.1);color:var(--green);border-color:var(--green)}
+.di:disabled{opacity:.4;cursor:not-allowed}
+.es{font-size:.74rem;border:1px solid var(--border);border-radius:var(--rs);padding:3px 5px;outline:none;background:var(--surface2);color:var(--text);width:100%;cursor:pointer}
+.es:focus{border-color:var(--accent)}
+.pc-wrap{display:flex;align-items:center;gap:5px}
+.pc-bar{flex:1;height:5px;background:var(--surface2);border-radius:10px;overflow:hidden;cursor:pointer;min-width:30px}
+.pc-fill{height:100%;border-radius:10px;transition:width .3s}
+.pc-inp{width:36px;font-size:.7rem;border:1px solid var(--border);border-radius:var(--rs);padding:2px 3px;text-align:center;outline:none;background:var(--surface2);color:var(--text)}
+.pc-inp:focus{border-color:var(--accent)}
+.add-st-row{padding:8px 18px 8px 28px}
+.add-st-row button{font-size:.76rem;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:var(--rs);padding:4px 14px;cursor:pointer;transition:all .15s}
+.add-st-row button:hover{background:rgba(0,122,255,.08)}
+.notes-wrap{background:var(--surface2);padding:10px 18px 10px 28px;border-top:1px solid var(--border)}
+.notes-wrap textarea{width:100%;font-size:.78rem;font-family:inherit;color:var(--text);border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;resize:vertical;background:var(--surface);outline:none;line-height:1.6}
+.notes-wrap textarea:focus{border-color:var(--accent)}
+
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--rxl);padding:26px;width:420px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-l);border:1px solid var(--border)}
+.modal h3{margin-bottom:14px;color:var(--text);font-size:1.02rem;font-weight:700}
+.modal label{font-size:.78rem;color:var(--text2);display:block;margin-bottom:4px;margin-top:10px}
+.modal input,.modal select,.modal textarea{width:100%;border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:.84rem;font-family:inherit;outline:none;background:var(--surface2);color:var(--text);transition:border-color .2s}
+.modal input:focus,.modal select:focus{border-color:var(--accent);background:var(--surface)}
+.modal-btns{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.slider{width:100%;margin-top:4px;accent-color:var(--accent)}
+.date-pair{display:flex;gap:8px}
+.date-pair>div{flex:1}
+.multi-tag-wrap{display:flex;flex-wrap:wrap;gap:4px;border:1px solid var(--border);border-radius:var(--rs);padding:6px 8px;min-height:36px;background:var(--surface2);cursor:text;align-items:center}
+.multi-tag-wrap:focus-within{border-color:var(--accent);background:var(--surface)}
+.m-tag{background:rgba(0,122,255,.12);color:var(--accent);border-radius:12px;padding:2px 8px;font-size:.75rem;display:inline-flex;align-items:center;gap:4px}
+.m-tag .rm{cursor:pointer;color:var(--text3);font-size:.8rem}
+.m-tag .rm:hover{color:var(--red)}
+.m-tag-input{border:none;outline:none;font-size:.8rem;background:transparent;color:var(--text);min-width:80px;flex:1}
+
+/* Drop Zone */
+#dropZone{margin:40px auto;max-width:480px;border:2px dashed var(--accent);border-radius:var(--rxl);padding:52px 20px;text-align:center;color:var(--accent);background:rgba(0,122,255,.04);cursor:pointer;transition:all .2s}
+#dropZone:hover{background:rgba(0,122,255,.09)}
+#dropZone .dz-icon{font-size:2.8rem}
+#dropZone .dz-title{font-size:1.05rem;font-weight:600;margin-top:10px}
+#dropZone .dz-sub{font-size:.82rem;color:var(--text2);margin-top:6px}
+
+/* ── Layout ── */
+.main-layout {
+  flex: 1;
+  min-height: 0;
+  height: 0;
+  position: relative;
+  overflow: hidden;
+}
+..board-col {
+  position: absolute;
+  top: 0; left: 0; right: 300px; bottom: 0;
+  overflow-y: scroll;
+  transition: right .3s;
+}
+
+.sidebar {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 300px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  box-shadow: -2px 0 8px rgba(0,0,0,.06);
+  transition: transform .3s, opacity .3s;
+  z-index: 10;
+}
+.sidebar{cursor:grab}.sidebar.grabbing{cursor:grabbing}.sidebar.collapsed {
+  transform: translateX(300px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-/* header style consolidated */
+.sidebar-header h2 { font-size: .9rem; font-weight: 700; color: var(--text); }
+.sidebar-toggle { background: none; border: none; cursor: pointer; color: var(--text2); font-size: .9rem; padding: 2px 6px; border-radius: var(--rs); transition: all .15s; }
+.sidebar-toggle:hover { background: var(--surface2); color: var(--accent); }
+.today-badge { font-size: .72rem; color: var(--text2); padding: 3px 10px; background: var(--surface2); border-radius: 20px; border: 1px solid var(--border); margin: 10px 16px 4px; display: inline-block; }
+.sb-section { padding: 10px 12px 4px; }
+.sb-section-title { font-size: .72rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.sb-section-title.overdue  { color: var(--red); }
+.sb-section-title.thisweek { color: var(--orange); }
+.sb-section-title.upcoming { color: var(--green); }
+.sb-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--rm); padding: 8px 10px; margin-bottom: 7px;
+  cursor: pointer; transition: all .15s;
+}
+.sb-item:hover { border-color: var(--accent); box-shadow: var(--shadow-s); transform: translateX(-2px); }
+.sb-item .sb-req { font-size: .68rem; color: var(--text3); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-item .sb-name { font-size: .8rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-item .sb-date { font-size: .68rem; margin-top: 3px; }
+.sb-item.overdue  .sb-date { color: var(--red); }
+.sb-item.thisweek .sb-date { color: var(--orange); }
+.sb-item.upcoming .sb-date { color: var(--green); }
+.sb-empty { font-size: .78rem; color: var(--text3); padding: 8px 12px 12px; text-align: center; }
+.sb-open-btn { background: none; border: none; cursor: pointer; color: var(--text2); font-size: .78rem; padding: 4px 8px; border-radius: var(--rs); transition: all .15s; white-space: nowrap; }
+.sb-open-btn:hover { background: var(--surface2); color: var(--accent); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:10px; background:var(--surface2); border:1.5px solid transparent; cursor:pointer; transition:.15s; }
+.ai-item:hover { border-color:var(--accent); }
+.ai-item.selected { border-color:#6C63FF; background:rgba(108,99,255,.08); }
+.ai-item input[type=checkbox] { margin-top:2px; accent-color:#6C63FF; width:16px; height:16px; flex-shrink:0; cursor:pointer; }
+.ai-item-body { flex:1; }
+.ai-item-name { font-size:.92rem; font-weight:600; color:var(--text); }
+.ai-item-meta { font-size:.78rem; color:var(--text3); margin-top:2px; }
+
+#appWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: clip;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ 頁面主容器 ══════════════ -->
+<div id="appWrapper">
+<!-- ── 頂部標題列：系統名稱、儲存提示、深色模式切換 ── -->
+<header>
+  <div>
+    <h1>📋 投資資訊二科</h1>
+    <div class="subtitle">需求單管理看板 · v33</div>
+  </div>
+  <div class="hdr-right">
+    <span class="save-ind" id="saveInd">💾 已自動儲存</span>
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">🌙 深色</button>
+  </div>
+</header>
+
+<!-- ── 查詢操作區：工具列、篩選列、統計列（固定於頂部） ── -->
+<div id="queryZone" style="flex-shrink:0;z-index:100">
+<div class="toolbar" id="mainToolbar" style="flex-direction:column;align-items:stretch;gap:0;padding:0">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 20px;border-bottom:1px solid var(--border)">
+    <button class="btn" onclick="openReqModal(-1)" style="font-weight:700">＋ 新增</button>
+    <button class="btn green" onclick="openBulkImport()">📦 批次匯入</button>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <label class="btn gray" style="cursor:pointer;margin:0">📂 匯入<input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="importXlsx(event)"></label>
+    <button class="btn gray" onclick="exportXlsx()">📥 匯出</button>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <button class="btn gray" onclick="openMemberMgr()">👥 成員</button>
+    <button class="btn gray" onclick="openTemplateMgr()">📐 範本</button>
+    <div style="flex:1"></div>
+    <button id="ganttBtn" onclick="openGantt()" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border:none;border-radius:var(--rm);padding:0 14px;height:34px;cursor:pointer;font-size:.83rem;font-weight:600;display:none;align-items:center">📊 甘特圖</button>
+    <button class="btn" onclick="clearAllData()" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">🗑 清除資料</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 20px;background:var(--surface2)">
+    <select id="filterType" onchange="render()" style="border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.8rem;background:var(--surface);color:var(--text)"><option value="">全部類型</option></select>
+    <select id="filterStatus" onchange="render()" style="border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.8rem;background:var(--surface);color:var(--text)">
+      <option value="">全部狀態</option><option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option>
+    </select>
+    <select id="filterOwner" onchange="render()" style="border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.8rem;background:var(--surface);color:var(--text)"><option value="">全部負責人</option></select>
+    <select id="filterMember" onchange="render()" style="border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.8rem;background:var(--surface);color:var(--text)"><option value="">全部成員</option></select>
+    <input id="searchBox" placeholder="🔍 搜尋名稱／編號" style="border:1px solid var(--border);border-radius:var(--rs);padding:4px 10px;font-size:.8rem;background:var(--surface);color:var(--text);width:160px" oninput="render()">
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="clearFilters()">✕ 清除篩選</button>
+    <div style="flex:1"></div>
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="expandAll()">⊞</button>
+    <button class="btn gray" style="font-size:.78rem;padding:3px 9px;height:28px" onclick="collapseAll()">⊟</button>
+  </div>
+</div>
+
+<div style="padding:4px 20px;font-size:.78rem;color:var(--text3);background:var(--surface2);border-bottom:1px solid var(--border)">提示：⭐ 標記為重大需求可釘選最前；▲▼ 調整排序；勾選多張後可產出甘特圖；成員篩選可高亮子任務。</div>
+
+<div class="stats-bar" id="statsBar"></div>
+</div><!-- /queryZone -->
+<!-- ── 主內容區：需求列表（左）＋ 今日儀表板（右） ── -->
+<div class="main-layout" id="mainZone" style="position:relative;overflow:hidden;">
+  <div class="board-col" id="boardCol" style="position:absolute;top:0;left:0;right:300px;bottom:0;overflow-y:scroll;">
+<div id="dropZone" style="display:none"
+  ondragover="event.preventDefault();this.style.background='rgba(0,122,255,.13)'"
+  ondragleave="this.style.background='rgba(0,122,255,.04)'"
+  ondrop="handleDrop(event)"
+  onclick="document.getElementById('xlsxInput').click()">
+  <div class="dz-icon">📂</div>
+  <div class="dz-title">點此選取 xlsx 匯入，或拖拉檔案到這裡</div>
+  <div class="dz-sub">支援 .xlsx 格式 · 匯入後自動載入所有需求單與成員清單</div>
+</div>
+    <div class="container" id="board"></div>
+  </div>
+  <div class="sidebar" id="sidebar" style="position:absolute;top:0;right:0;bottom:0;width:300px;">
+    <div class="sidebar-header">
+      <h2>📅 今日儀表板</h2>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="收合側邊欄">✕</button>
+    </div>
+    <div id="sidebarContent">
+</div><!-- /appWrapper --></div>
+  </div>
+</div>
+<button class="sb-open-btn" id="sidebarOpenBtn" style="display:none;position:fixed;right:12px;bottom:20px;background:var(--accent);color:#fff;border-radius:20px;padding:8px 16px;box-shadow:var(--shadow-m);z-index:200" onclick="toggleSidebar()">📅 今日儀表板</button>
+
+<!-- ══════════════ Modals 彈窗區域 ══════════════ -->
+<!-- Modal: 需求單 -->
+<div class="overlay" id="reqOverlay" onclick="if(event.target===this)closeModal('reqOverlay')">
+  <div class="modal">
+    <h3 id="reqModalTitle">新增需求單</h3>
+    <label>需求單編號</label><input id="r-id" placeholder="RE2026XXXXX">
+    <label>需求單名稱</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="r-name" placeholder="簡短描述需求" style="flex:1">
+      <button type="button" class="btn" style="background:linear-gradient(135deg,#6C63FF,#1A73E8);white-space:nowrap;padding:0 12px;height:36px;font-size:.82rem" onclick="openAiSuggest()">🤖 AI 拆解</button>
+    </div>
+    <label>需求類型</label><select id="r-type" onchange="onTypeChange()"></select>
+    <label>負責人（可直接輸入，支援多位用「、」分隔）</label>
+    <div class="multi-tag-wrap" id="ownerWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>成員（可直接輸入，支援多位用「、」分隔）</label>
+    <div class="multi-tag-wrap" id="devsWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>狀態</label>
+    <select id="r-status"><option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option></select>
+    <div class="date-pair">
+      <div><label>預計開始日</label><input type="date" id="r-start"></div>
+      <div><label>預計完成日</label><input type="date" id="r-due"></div>
+    </div>
+    <label>實際完成日</label><input type="date" id="r-actual">
+    <div class="modal-btns" style="flex-wrap:wrap;gap:8px">
+      <button class="btn gray" onclick="closeModal('reqOverlay')">取消</button>
+      <button class="btn" onclick="saveReq()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: AI 建議子任務 -->
+<div class="overlay" id="aiOverlay" onclick="if(event.target===this)closeModal('aiOverlay')">
+  <div class="modal" style="max-width:520px">
+    <h3 style="background:linear-gradient(135deg,#6C63FF,#1A73E8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🤖 AI 建議子任務</h3>
+    <div id="aiKeySection">
+      <label style="font-size:.85rem;color:var(--text2)">OpenRouter API Key（僅儲存在你的瀏覽器）</label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <input id="aiKeyInput" type="password" placeholder="sk-or-v1-..." style="flex:1">
+        <button class="btn" style="background:#6C63FF;white-space:nowrap" onclick="saveAiKey()">儲存 Key</button>
+      </div>
+      <div id="aiKeyStatus" style="font-size:.78rem;margin-top:4px;color:var(--text3)"></div>
+    </div>
+    <div style="margin:12px 0 4px;font-size:.85rem;color:var(--text2)">使用模型</div>
+    <select id="aiModelSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem">
+      <option value="openrouter/free">⭐ 自動選最佳免費模型（推薦）</option>
+      <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B</option>
+      <option value="meta-llama/llama-3.3-70b-instruct:free">Meta Llama 3.3 70B</option>
+      <option value="openai/gpt-oss-20b:free">OpenAI GPT-OSS 20B</option>
+      <option value="nvidia/nemotron-3-nano-30b-a3b:free">NVIDIA Nemotron Nano 30B</option>
+      <option value="google/gemma-3-27b-it:free">Google Gemma 3 27B</option>
+    </select>
+    <div style="margin:10px 0 4px;font-size:.85rem;color:var(--text2)">需求描述（可補充細節）</div>
+    <textarea id="aiPromptExtra" rows="2" style="width:100%;resize:vertical;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.9rem" placeholder="選填：補充需求背景、技術限制等"></textarea>
+    <button id="aiGenerateBtn" class="btn" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#6C63FF,#1A73E8);font-size:1rem" onclick="generateAiSubtasks()">✨ 開始生成</button>
+    <div id="aiLoading" style="display:none;text-align:center;padding:20px;color:var(--text2)">
+      <div style="font-size:1.5rem;animation:spin 1s linear infinite;display:inline-block">⏳</div>
+      <div style="margin-top:8px;font-size:.9rem">AI 正在分析需求，請稍候...</div>
+    </div>
+    <div id="aiError" style="display:none;color:var(--red);font-size:.85rem;margin-top:8px;padding:8px;background:rgba(192,57,43,.08);border-radius:8px"></div>
+    <div id="aiResultSection" style="display:none">
+      <div style="margin:12px 0 6px;font-size:.85rem;font-weight:600;color:var(--text)">選擇要加入的子任務：</div>
+      <div id="aiResultList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn gray" style="flex:1" onclick="aiSelectAll(true)">全選</button>
+        <button class="btn gray" style="flex:1" onclick="aiSelectAll(false)">全不選</button>
+        <button class="btn" style="flex:2;background:linear-gradient(135deg,#6C63FF,#1A73E8)" onclick="insertAiSubtasks()">➕ 加入看板</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: 子任務 -->
+<div class="overlay" id="stOverlay" onclick="if(event.target===this)closeModal('stOverlay')">
+  <div class="modal">
+    <h3>編輯子任務</h3>
+    <label>子任務名稱</label><input id="st-name">
+    <label>負責人（可直接輸入，支援多位用「、」分隔）</label>
+    <div class="multi-tag-wrap" id="stPersonWrap" onclick="this.querySelector('.m-tag-input').focus()"></div>
+    <label>狀態</label>
+    <select id="st-status"><option>待開始</option><option>進行中</option><option>已完成</option><option>擱置</option></select>
+    <div class="date-pair">
+      <div><label>開始日</label><input type="date" id="st-start"></div>
+      <div><label>完成日</label><input type="date" id="st-due"></div>
+    </div>
+    <label>實際完成日</label><input type="date" id="st-actual">
+    <label>完成率 <span id="stPctLabel">0</span>%</label>
+    <input type="range" class="slider" id="st-pct" min="0" max="100" value="0" oninput="document.getElementById('stPctLabel').textContent=this.value">
+    <label>備註</label><textarea id="st-note" rows="3" placeholder="可輸入子任務備註"></textarea>
+    <div class="modal-btns">
+      <button class="btn gray" onclick="closeModal('stOverlay')">取消</button>
+      <button class="btn" onclick="saveSt()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: 成員管理 -->
+<div class="overlay" id="memberOverlay" onclick="if(event.target===this)closeModal('memberOverlay')">
+  <div class="modal">
+    <h3>👥 成員管理</h3>
+    <div id="memberList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <input id="newMemberName" placeholder="輸入成員姓名" style="flex:1" onkeydown="if(event.key==='Enter')addMember()">
+      <button class="btn green" onclick="addMember()">新增</button>
+    </div>
+    <div class="modal-btns"><button class="btn gray" onclick="closeModal('memberOverlay')">關閉</button></div>
+  </div>
+</div>
+
+<!-- Modal: 範本管理 -->
+<div class="overlay" id="tmplOverlay" onclick="if(event.target===this)closeTemplateMgr()">
+  <div class="modal" style="max-width:560px">
+    <h3>📐 範本管理</h3>
+    <p style="font-size:.8rem;color:var(--text2);margin-bottom:12px">為每種需求類型設定子功能範本，新增需求單時自動套用。</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="tmplTabs"></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <input id="newTypeName" placeholder="新增需求類型" style="flex:1" onkeydown="if(event.key==='Enter')addReqType()">
+      <button class="btn green" onclick="addReqType()">＋ 新增類型</button>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin-bottom:12px">
+    <div id="tmplTypeLabel" style="font-weight:700;color:var(--accent);margin-bottom:8px;font-size:.9rem"></div>
+    <table style="width:100%;border-collapse:collapse;font-size:.84rem">
+      <thead><tr style="background:var(--surface2)">
+        <th style="padding:7px 8px;text-align:left;border-bottom:2px solid var(--border)">子功能名稱</th>
+        <th style="padding:7px 8px;text-align:center;border-bottom:2px solid var(--border);width:90px">工作天數</th>
+        <th style="padding:7px 8px;text-align:center;border-bottom:2px solid var(--border);width:50px">刪除</th>
+      </tr></thead>
+      <tbody id="tmplBody"></tbody>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input id="newStName" placeholder="子功能名稱" style="flex:1" onkeydown="if(event.key==='Enter')addTmplRow()">
+      <input id="newStDays" type="number" value="5" min="1" max="60" style="width:64px;text-align:center">
+      <button class="btn green" onclick="addTmplRow()">新增</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn gray" onclick="closeTemplateMgr()">取消</button>
+      <button class="btn" onclick="saveTemplateMgr()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: 選擇範本 -->
+<div class="overlay" id="selectTmplOverlay">
+  <div class="modal" style="max-width:400px">
+    <h3>📋 套用子功能範本</h3>
+    <p style="font-size:.82rem;color:var(--text2);margin-bottom:14px">此類型尚未設定範本，請選擇要套用的範本，或不帶入。</p>
+    <div id="selectTmplList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+    <div class="modal-btns"><button class="btn gray" onclick="applyTmpl(null)">不帶入範本</button></div>
+  </div>
+</div>
+
+<script>
+let _openCards = new Set(); // 卡片展開狀態
+
+let _stSort={ri:-1,col:null,dir:1};
+let _stFilter={};
+// ═══════════════════════════════════════════════════
+//  資料層
+// ═══════════════════════════════════════════════════
+const SK = { data:'pm_v33_data', types:'pm_v33_types', tmpl:'pm_v33_tmpl', theme:'pm_v33_theme' };
+
+const DEF_TYPES = ['開發功能','撈資料','系統分析','測試/QA','行政維運','其他'];
+const DEF_TMPL  = { '開發功能':[{name:'需求規劃',days:5},{name:'程式開發',days:5},{name:'SIT',days:5},{name:'UAT',days:5},{name:'上線',days:5},{name:'結案',days:5}] };
+const DEF_DATA  = {
+  members:['宥維','建華','慶龍','曜宇','炳志','至軒'],
+  requirements:[]
+};
+
+// 從 localStorage 讀取資料，若不存在則回傳預設值
+function load(key,def){ try{ const v=localStorage.getItem(key); return v?JSON.parse(v):def; }catch(e){ return def; } }
+// 將資料序列化後存入 localStorage
+function save(key,val){ localStorage.setItem(key,JSON.stringify(val)); }
+
+let DATA     = load(SK.data, DEF_DATA);
+let REQ_TYPES= load(SK.types, [...DEF_TYPES]);
+let ALL_TMPL = load(SK.tmpl, JSON.parse(JSON.stringify(DEF_TMPL)));
+
+// 儲存主要資料（需求單、成員等）並顯示儲存提示
+function saveData(){ save(SK.data,DATA); showSaveInd(); }
+// 短暫顯示「已自動儲存」提示文字
+function showSaveInd(){ const el=document.getElementById('saveInd'); el.textContent='💾 已自動儲存'; clearTimeout(el._t); el._t=setTimeout(()=>el.textContent='',3000); }
+// 回傳今日日期字串（yyyy-mm-dd 格式）
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+
+// ═══════════════════════════════════════════════════
+//  假日 & 工作日
+// ═══════════════════════════════════════════════════
+let _hols=[];
+// 從 date.nager.at API 取得台灣指定年份的國定假日清單
+async function fetchHols(year){
+  try{ const r=await fetch('https://date.nager.at/API/v3/PublicHolidays/'+year+'/TW'); _hols=(await r.json()).map(h=>h.date); }catch(e){ _hols=[]; }
+}
+// 判斷指定日期是否為工作日（非週六日且非國定假日）
+function isWorkday(ds){ const d=new Date(ds); if(d.getDay()===0||d.getDay()===6)return false; return !_hols.includes(ds); }
+// 從指定日期加上 n 個工作天，回傳結果日期字串
+function addWorkdays(start,n){
+  let d=new Date(start),cnt=0;
+  while(cnt<n){ d.setDate(d.getDate()+1); if(isWorkday(d.toISOString().split('T')[0]))cnt++; }
+  return d.toISOString().split('T')[0];
+}
+// 取得指定日期之後的第一個工作日
+function nextWorkday(ds){
+  let d=new Date(ds);
+  do{ d.setDate(d.getDate()+1); }while(!isWorkday(d.toISOString().split('T')[0]));
+  return d.toISOString().split('T')[0];
+}
+// 依範本與開始日期自動產生子任務清單（含日期計算）
+function genSubtasks(tmpl,startDate){
+  const subs=[]; let cur=startDate;
+  while(!isWorkday(cur)) cur=nextWorkday(cur);
+  tmpl.forEach(item=>{
+    const s=cur, e=addWorkdays(s,item.days-1);
+    subs.push({name:item.name,person:'－',startDate:s,dueDate:e,actualDate:'',status:'待開始',pct:0});
+    cur=nextWorkday(e);
+  });
+  return subs;
+}
+
+// ═══════════════════════════════════════════════════
+//  主題切換
+// ═══════════════════════════════════════════════════
+function toggleTheme(){
+  const dark=document.body.classList.toggle('dark');
+  save(SK.theme, dark?'dark':'light');
+  document.getElementById('themeBtn').textContent=dark?'☀️ 亮色':'🌙 深色';
+}
+// 初始化主題（頁面載入時讀取上次設定）
+(function initTheme(){
+  if(load(SK.theme,'light')==='dark'){
+    document.body.classList.add('dark');
+    document.addEventListener('DOMContentLoaded',()=>{
+      const b=document.getElementById('themeBtn'); if(b)b.textContent='☀️ 亮色';
+    });
+  }
+})();
+
+// ═══════════════════════════════════════════════════
+//  多選 Tag 輸入
+// ═══════════════════════════════════════════════════
+function initTagInput(wrapId, values, suggestions, onChange){
+  const wrap=document.getElementById(wrapId);
+  wrap.innerHTML='';
+  const vals=[...values];
+  // （內部）重新渲染 Tag 列表，同步更新 DOM 與回調
+  function refresh(){
+    wrap.querySelectorAll('.m-tag').forEach(t=>t.remove());
+    vals.forEach((v,i)=>{
+      const tag=document.createElement('span'); tag.className='m-tag';
+      tag.innerHTML=v+' <span class="rm" onclick="this.parentNode._remove()">✕</span>';
+      tag._remove=()=>{ vals.splice(i,1); refresh(); };
+      wrap.insertBefore(tag, wrap.querySelector('.m-tag-input'));
+    });
+    if(onChange) onChange(vals);
+  }
+  const inp=document.createElement('input'); inp.className='m-tag-input'; inp.placeholder='輸入後按 Enter';
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===','){
+      e.preventDefault();
+      const v=inp.value.trim();
+      if(v&&!vals.includes(v)){ vals.push(v); refresh(); inp.value=''; }
+    } else if(e.key==='Backspace'&&inp.value===''&&vals.length>0){
+      vals.pop(); refresh();
+    }
+  });
+  // 建議清單
+  if(suggestions&&suggestions.length){
+    inp.addEventListener('focus',()=>showSugg(inp,suggestions,vals,()=>refresh()));
+    inp.addEventListener('input',()=>showSugg(inp,suggestions,vals,()=>refresh()));
+  }
+  wrap.appendChild(inp);
+  wrap._getVals=()=>vals;
+  refresh();
+}
+let _suggEl=null;
+// 顯示輸入建議下拉選單
+function showSugg(inp,suggs,vals,refresh){
+  removeSugg();
+  const q=inp.value.toLowerCase();
+  const filtered=suggs.filter(s=>!vals.includes(s)&&s.toLowerCase().includes(q));
+  if(!filtered.length)return;
+  _suggEl=document.createElement('div');
+  _suggEl.style.cssText='position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--rm);box-shadow:var(--shadow-m);z-index:9999;min-width:120px;overflow:hidden;pointer-events:auto';
+  filtered.forEach(s=>{
+    const d=document.createElement('div');
+    d.textContent=s; d.style.cssText='padding:7px 12px;cursor:pointer;font-size:.82rem;color:var(--text)';
+    d.onmouseenter=()=>d.style.background='var(--surface2)';
+    d.onmouseleave=()=>d.style.background='';
+    d.onmousedown=e=>{ e.preventDefault(); e.stopPropagation(); vals.push(s); refresh(); inp.value=''; setTimeout(removeSugg,0); inp.focus(); };
+    d.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
+    _suggEl.appendChild(d);
+  });
+  const rect=inp.getBoundingClientRect();
+  _suggEl.style.left=rect.left+'px'; _suggEl.style.top=(rect.bottom+4)+'px';
+  document.body.appendChild(_suggEl);
+}
+// 移除輸入建議下拉選單
+function removeSugg(){ if(_suggEl){ _suggEl.remove(); _suggEl=null; } }
+document.addEventListener('mousedown',function(e){ if(_suggEl && !_suggEl.contains(e.target) && !e.target.classList.contains('m-tag-input')) removeSugg(); });
+// 取得指定 Tag 輸入框目前已選的值陣列
+function getTagVals(wrapId){ return document.getElementById(wrapId)._getVals?.()??[]; }
+// 將 Tag 陣列格式化為「、」分隔的字串
+function fmtTags(arr){ return arr.join('、'); }
+// 將分隔字串解析為 Tag 陣列
+function parseTags(str){ if(!str||str==='－')return []; return str.split(/[、,，\s]+/).map(s=>s.trim()).filter(Boolean); }
+// 在子任務列渲染負責人 Tag 輸入框（延遲綁定）
+function renderPersonTags(val,ri,si){
+  const vals=parseTags(val);
+  const wrapId=`subperson-${ri}-${si}`;
+  setTimeout(()=>{
+    const wrap=document.getElementById(wrapId);
+    if(!wrap||wrap.dataset.bound) return;
+    wrap.dataset.bound='1';
+    initTagInput(wrapId, vals, DATA.members||[]);
+  },0);
+  return `<div id="${wrapId}" class="sub-person-wrap"></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+//  需求類型
+// ═══════════════════════════════════════════════════
+function refreshTypeSelects(){
+  ['r-type','filterType'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel)return;
+    const cur=sel.value;
+    if(id==='filterType'){
+      sel.innerHTML='<option value="">全部</option>'+REQ_TYPES.map(t=>`<option>${t}</option>`).join('');
+    } else {
+      sel.innerHTML=REQ_TYPES.map(t=>`<option>${t}</option>`).join('');
+    }
+    if(REQ_TYPES.includes(cur))sel.value=cur;
+  });
+}
+// 重新整理負責人與成員篩選下拉選單
+function refreshOwnerFilter(){
+  const sel=document.getElementById('filterOwner'); if(!sel)return;
+  const cur=sel.value;
+  const opts='<option value="">全部</option>'+(DATA.members||[]).map(m=>`<option>${m}</option>`).join('');
+  sel.innerHTML=opts;
+  if(cur)sel.value=cur;
+  // 同步更新成員篩選
+  const msel=document.getElementById('filterMember'); if(!msel)return;
+  const mcur=msel.value;
+  msel.innerHTML=opts;
+  if(mcur)msel.value=mcur;
+}
+
+// ═══════════════════════════════════════════════════
+//  Modal 開關
+// ═══════════════════════════════════════════════════
+function closeModal(id){ document.getElementById(id).style.display=''; render(); }
+// 開啟指定 id 的 Modal
+function openModal(id){ document.getElementById(id).style.display='flex'; }
+
+// ═══════════════════════════════════════════════════
+//  需求單 Modal
+// ═══════════════════════════════════════════════════
+let editRi=-1;
+// 開啟需求單新增/編輯 Modal（ri < 0 為新增，否則為編輯）
+function openReqModal(ri){
+  editRi=ri;
+  refreshTypeSelects();
+  document.getElementById('reqModalTitle').textContent=ri<0?'新增需求單':'編輯需求單';
+  const r=ri<0?{}:DATA.requirements[ri];
+  document.getElementById('r-id').value    =r.id||'';
+  document.getElementById('r-name').value  =r.name||'';
+  document.getElementById('r-type').value  =r.type||REQ_TYPES[0];
+  document.getElementById('r-status').value=r.status||'待開始';
+  document.getElementById('r-start').value =r.startDate||todayStr();
+  document.getElementById('r-due').value   =r.dueDate||'';
+  document.getElementById('r-actual').value=r.actualDate||'';
+  initTagInput('ownerWrap', parseTags(r.owner||''), DATA.members||[]);
+  initTagInput('devsWrap',  parseTags(r.devs||''),  DATA.members||[]);
+  openModal('reqOverlay');
+  fetchHols(new Date().getFullYear());
+}
+// 需求類型變更時的回調（目前保留供擴充）
+function onTypeChange(){}
+
+let _pendingReq=null;
+// 儲存需求單表單資料（含自動套用子任務範本邏輯）
+async function saveReq(){
+  const startDate=document.getElementById('r-start').value;
+  const type=document.getElementById('r-type').value;
+  await fetchHols(startDate.split('-')[0]||new Date().getFullYear());
+  const now=new Date().toISOString();
+  const isNew=editRi<0;
+  const req={
+    id:       document.getElementById('r-id').value||'RE2026XXXXX',
+    name:     document.getElementById('r-name').value||'新需求單',
+    type,
+    owner:    fmtTags(getTagVals('ownerWrap'))||'－',
+    devs:     fmtTags(getTagVals('devsWrap'))||'－',
+    status:   document.getElementById('r-status').value,
+    startDate, dueDate:document.getElementById('r-due').value,
+    actualDate:document.getElementById('r-actual').value,
+    notes:    isNew?'':(DATA.requirements[editRi].notes||''),
+    subtasks: isNew?[]:(DATA.requirements[editRi].subtasks||[]),
+    starred:  isNew?false:!!(DATA.requirements[editRi].starred),
+    createdDate:  isNew?now:(DATA.requirements[editRi].createdDate||now),
+    lastUpdated:  now
+  };
+  if(!isNew){
+    DATA.requirements[editRi]=req; saveData(); closeModal('reqOverlay'); return;
+  }
+  const tmpl=ALL_TMPL[type];
+  if(tmpl&&tmpl.length>0&&startDate){
+    req.subtasks=genSubtasks(tmpl,startDate);
+    if(!req.dueDate&&req.subtasks.length>0) req.dueDate=req.subtasks[req.subtasks.length-1].dueDate;
+    editRi = DATA.requirements.length; DATA.requirements.push(req); saveData(); closeModal('reqOverlay');
+  } else {
+    _pendingReq=req; showSelectTmpl();
+  }
+}
+// 顯示選擇子任務範本的 Modal（新增需求單且有多個可用範本時）
+function showSelectTmpl(){
+  const avail=Object.keys(ALL_TMPL).filter(t=>ALL_TMPL[t]&&ALL_TMPL[t].length>0);
+  const list=document.getElementById('selectTmplList');
+  list.innerHTML=avail.length?avail.map(t=>`
+    <button onclick="applyTmpl('${t}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rm);padding:10px 14px;cursor:pointer;text-align:left;font-size:.85rem;color:var(--text);transition:all .15s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <strong style="color:var(--accent)">📋 ${t}</strong>
+      <span style="color:var(--text2);font-size:.75rem;margin-left:8px">${ALL_TMPL[t].length} 個子功能</span>
+    </button>`).join(''):'<p style="color:var(--text2);font-size:.82rem">尚未設定任何範本。</p>';
+  openModal('selectTmplOverlay');
+}
+// 套用選定的子任務範本到待新增的需求單
+function applyTmpl(type){
+  document.getElementById('selectTmplOverlay').style.display='';
+  if(!_pendingReq)return;
+  const req=_pendingReq; _pendingReq=null;
+  if(type&&ALL_TMPL[type]&&req.startDate){
+    req.subtasks=genSubtasks(ALL_TMPL[type],req.startDate);
+    if(!req.dueDate&&req.subtasks.length>0) req.dueDate=req.subtasks[req.subtasks.length-1].dueDate;
+  }
+  DATA.requirements.push(req); saveData(); closeModal('reqOverlay');
+}
+
+// ═══════════════════════════════════════════════════
+//  子任務
+// ═══════════════════════════════════════════════════
+let editRi2=-1, editSi=-1;
+// 開啟子任務編輯 Modal
+function openStModal(ri,si){
+  editRi2=ri; editSi=si;
+  const st=DATA.requirements[ri].subtasks[si];
+  document.getElementById('st-name').value  =st.name||'';
+  document.getElementById('st-status').value=st.status||'待開始';
+  document.getElementById('st-start').value =st.startDate||'';
+  document.getElementById('st-due').value   =st.dueDate||'';
+  document.getElementById('st-actual').value=st.actualDate||'';
+  document.getElementById('st-pct').value   =st.pct||0;
+  document.getElementById('stPctLabel').textContent=st.pct||0;
+  document.getElementById('st-note').value  =st.note||'';
+  initTagInput('stPersonWrap', parseTags(st.person||''), DATA.members||[]);
+  initTagInput('stPersonWrap', parseTags(st.person||''), DATA.members||[]);
+  openModal('stOverlay');
+}
+// 儲存子任務 Modal 表單資料
+function saveSt(){
+  const st=DATA.requirements[editRi2].subtasks[editSi];
+  st.name=document.getElementById('st-name').value;
+  st.person=fmtTags(getTagVals('stPersonWrap'))||'－';
+  st.status=document.getElementById('st-status').value;
+  st.startDate=document.getElementById('st-start').value;
+  st.dueDate=document.getElementById('st-due').value;
+  st.actualDate=document.getElementById('st-actual').value;
+  st.pct=parseInt(document.getElementById('st-pct').value)||0;
+  st.note=document.getElementById('st-note').value||'';
+  saveData(); closeModal('stOverlay');
+}
+// 刪除指定子任務（含確認提示）
+function delSt(ri,si){ if(!confirm('確定刪除此子任務？'))return; DATA.requirements[ri].subtasks.splice(si,1); saveData(); render(); }
+// 複製指定子任務並插入到下一列
+function copySt(ri,si){
+  const orig=DATA.requirements[ri].subtasks[si];
+  const copy=JSON.parse(JSON.stringify(orig));
+  copy.name+='（複製）'; copy.actualDate=''; copy.status='待開始'; copy.pct=0;
+  DATA.requirements[ri].subtasks.splice(si+1,0,copy);
+  saveData(); render();
+}
+// 快速新增一列空白子任務
+function addStRow(ri){
+  DATA.requirements[ri].subtasks.push({name:'新子任務',person:'－',startDate:'',dueDate:'',actualDate:'',status:'待開始',pct:0});
+  saveData(); render();
+}
+// 更新子任務單一欄位值（inline 編輯用），並處理已完成自動填日期邏輯
+function updateStField(ri,si,field,val){
+  const st = DATA.requirements[ri].subtasks[si];
+  st[field] = val;
+  // 選擇「已完成」時自動補完成率 100% 與實際完成日
+  if(field==='status' && val==='已完成'){
+    st.pct = 100;
+    if(!st.actualDate) st.actualDate = new Date().toISOString().split('T')[0];
+  }
+  // 取消已完成（改回其他狀態）時清空自動填入的完成率
+  if(field==='status' && val!=='已完成'){
+    if(st.pct===100) st.pct = 0;
+  }
+  saveData();
+  render();
+}
+// 更新子任務完成率
+function updateStPct(ri,si,val){
+  DATA.requirements[ri].subtasks[si].pct=parseInt(val)||0; saveData();
+}
+// ═══ 子任務排序 / 篩選 ═══
+function stThBtn(ri, col){
+  const isSort = _stSort.ri===ri && _stSort.col===col;
+  const icon = isSort ? (_stSort.dir===1?'▲':'▼') : '⇅';
+  const hasFil = (_stFilter[ri]&&_stFilter[ri].col===col&&_stFilter[ri].vals.length) ? '🔹' : '';
+  return `<span onclick="event.stopPropagation();stSort(${ri},'${col}')" style="cursor:pointer;font-size:.6rem;color:${isSort?'var(--accent)':'var(--text3)'};margin-left:2px" title="排序">${icon}</span>`
+       + `<span onclick="event.stopPropagation();stFilterOpen(event,${ri},'${col}')" style="cursor:pointer;font-size:.6rem;margin-left:1px" title="篩選">${hasFil||'▾'}</span>`;
+}
+
+// 切換子任務排序（升序/降序/取消）
+function stSort(ri, col){
+  if(_stSort.ri===ri && _stSort.col===col){
+    if(_stSort.dir===1) _stSort.dir=-1;
+    else { _stSort={ri:-1,col:null,dir:1}; } // 第三次點擊取消排序
+  } else {
+    _stSort={ri,col,dir:1};
+  }
+  render();
+}
+
+// 開啟子任務欄位篩選下拉選單
+function stFilterOpen(e, ri, col){
+  // 移除舊下拉
+  document.querySelectorAll('.st-filter-drop').forEach(el=>el.remove());
+  const subs = DATA.requirements[ri].subtasks||[];
+  const vals = [...new Set(subs.map(st=>String(st[col]||'')).filter(v=>v))].sort();
+  if(!vals.length) return;
+  const cur = (_stFilter[ri]&&_stFilter[ri].col===col) ? _stFilter[ri].vals : [];
+  const drop = document.createElement('div');
+  drop.className='st-filter-drop';
+  drop.style.cssText=`position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:var(--rm,8px);box-shadow:var(--shadow-m);padding:6px 0;min-width:130px;font-size:.8rem;`;
+  const rect = e.target.getBoundingClientRect();
+  drop.style.left = rect.left+'px';
+  drop.style.top  = (rect.bottom+4)+'px';
+  // 全選/清除
+  const allRow = document.createElement('div');
+  allRow.style.cssText='padding:4px 12px;cursor:pointer;color:var(--accent);font-weight:600;';
+  allRow.textContent = cur.length ? '✕ 清除篩選' : '✓ 全選';
+  allRow.onclick = ()=>{ delete _stFilter[ri]; render(); drop.remove(); };
+  drop.appendChild(allRow);
+  const hr = document.createElement('hr');
+  hr.style.cssText='border:none;border-top:1px solid var(--border);margin:4px 0;';
+  drop.appendChild(hr);
+  vals.forEach(v=>{
+    const row = document.createElement('div');
+    const checked = cur.includes(v);
+    row.style.cssText=`padding:5px 12px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text);${checked?'background:var(--surface2)':''}`;
+    row.innerHTML = `<span style="font-size:.7rem">${checked?'☑':'☐'}</span>${v}`;
+    row.onmouseenter=()=>row.style.background='var(--surface2)';
+    row.onmouseleave=()=>row.style.background=checked?'var(--surface2)':'';
+    row.onclick=()=>{
+      if(!_stFilter[ri]) _stFilter[ri]={col,vals:[]};
+      _stFilter[ri].col=col;
+      const idx=_stFilter[ri].vals.indexOf(v);
+      if(idx>=0) _stFilter[ri].vals.splice(idx,1);
+      else _stFilter[ri].vals.push(v);
+      if(!_stFilter[ri].vals.length) delete _stFilter[ri];
+      render(); drop.remove();
+    };
+    drop.appendChild(row);
+  });
+  document.body.appendChild(drop);
+  // （內部）點擊下拉選單外部時自動關閉
+  setTimeout(()=>document.addEventListener('click', function h(ev){ if(!drop.contains(ev.target)){drop.remove();document.removeEventListener('click',h);} }),0);
+}
+
+// 更新需求單備註欄位（inline 編輯）
+function updateReqNotes(ri,val){ DATA.requirements[ri].notes=val; saveData(); }
+// 刪除指定需求單（含確認提示）
+function deleteReq(ri){ if(!confirm('確定刪除此需求單？'))return; DATA.requirements.splice(ri,1); saveData(); render(); }
+
+// ═══════════════════════════════════════════════════
+//  成員管理
+// ═══════════════════════════════════════════════════
+function openMemberMgr(){
+  renderMemberList();
+  openModal('memberOverlay');
+}
+// 重新渲染成員管理清單
+function renderMemberList(){
+  const list=document.getElementById('memberList');
+  list.innerHTML=(DATA.members||[]).map((m,i)=>`
+    <span style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:.82rem;color:var(--text);display:inline-flex;align-items:center;gap:6px">
+      ${m}
+      <span onclick="delMember(${i})" style="cursor:pointer;color:var(--text3);font-size:.8rem" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">✕</span>
+    </span>`).join('');
+}
+// 新增成員到成員清單
+function addMember(){
+  const n=document.getElementById('newMemberName').value.trim();
+  if(!n)return;
+  if((DATA.members||[]).includes(n)){alert('此成員已存在');return;}
+  DATA.members.push(n); saveData(); renderMemberList();
+  document.getElementById('newMemberName').value='';
+  refreshOwnerFilter();
+}
+// 刪除指定成員
+function delMember(i){
+  if(!confirm('確定移除此成員？'))return;
+  DATA.members.splice(i,1); saveData(); renderMemberList(); refreshOwnerFilter();
+}
+
+// ═══════════════════════════════════════════════════
+//  範本管理
+// ═══════════════════════════════════════════════════
+let _tmplCurType='', _tmplEditTypes=[], _tmplRows=[];
+// 開啟子任務範本管理 Modal
+function openTemplateMgr(){
+  _tmplEditTypes=[...REQ_TYPES];
+  _tmplCurType=REQ_TYPES[0];
+  renderTmplTabs(); switchTmplType(_tmplCurType);
+  openModal('tmplOverlay');
+}
+// 關閉子任務範本管理 Modal
+function closeTemplateMgr(){ document.getElementById('tmplOverlay').style.display=''; }
+// 渲染範本管理的需求類型 Tab 列
+function renderTmplTabs(){
+  document.getElementById('tmplTabs').innerHTML=_tmplEditTypes.map(t=>`
+    <span onclick="switchTmplType('${t}')" style="padding:5px 14px;border-radius:20px;font-size:.8rem;cursor:pointer;border:1px solid ${t===_tmplCurType?'var(--accent)':'var(--border)'};background:${t===_tmplCurType?'var(--accent)':'var(--surface2)'};color:${t===_tmplCurType?'#fff':'var(--text2)'};display:inline-flex;align-items:center;gap:6px;transition:all .15s">
+      ${t}${t!=='開發功能'?` <span onmousedown="event.stopPropagation();removeType('${t}')" style="font-size:.8rem;opacity:.7">✕</span>`:''}
+    </span>`).join('');
+}
+// 切換目前編輯的範本類型
+function switchTmplType(type){
+  _tmplCurType=type;
+  _tmplRows=JSON.parse(JSON.stringify(ALL_TMPL[type]||[]));
+  document.getElementById('tmplTypeLabel').textContent='「'+type+'」的子功能範本';
+  renderTmplTabs(); renderTmplBody();
+}
+// 渲染範本管理的子任務列表
+function renderTmplBody(){
+  const tbody=document.getElementById('tmplBody');
+  if(!_tmplRows.length){ tbody.innerHTML='<tr><td colspan="3" style="padding:12px;text-align:center;color:var(--text3);font-size:.82rem">尚未設定範本，請在下方新增子功能</td></tr>'; return; }
+  tbody.innerHTML=_tmplRows.map((r,i)=>`
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:5px 8px"><input value="${r.name}" style="width:100%;border:1px solid var(--border);border-radius:var(--rs);padding:4px 8px;font-size:.82rem;background:var(--surface2);color:var(--text);outline:none" onchange="_tmplRows[${i}].name=this.value"></td>
+      <td style="padding:5px 8px;text-align:center"><input type="number" value="${r.days}" min="1" max="60" style="width:60px;border:1px solid var(--border);border-radius:var(--rs);padding:4px;font-size:.82rem;text-align:center;background:var(--surface2);color:var(--text);outline:none" onchange="_tmplRows[${i}].days=parseInt(this.value)||5"></td>
+      <td style="padding:5px 8px;text-align:center"><span onclick="_tmplRows.splice(${i},1);renderTmplBody()" style="cursor:pointer;color:var(--text3);font-size:1rem" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'">🗑</span></td>
+    </tr>`).join('');
+}
+// 新增一列子任務到目前範本
+function addTmplRow(){
+  const n=document.getElementById('newStName').value.trim();
+  const d=parseInt(document.getElementById('newStDays').value)||5;
+  if(!n)return;
+  _tmplRows.push({name:n,days:d});
+  document.getElementById('newStName').value='';
+  renderTmplBody();
+}
+// 新增需求類型
+function addReqType(){
+  const n=document.getElementById('newTypeName').value.trim();
+  if(!n)return;
+  if(_tmplEditTypes.includes(n)){alert('此類型已存在');return;}
+  _tmplEditTypes.push(n);
+  document.getElementById('newTypeName').value='';
+  switchTmplType(n);
+}
+// 刪除指定需求類型（含確認提示）
+function removeType(type){
+  if(type==='開發功能')return;
+  if(!confirm('確定刪除「'+type+'」類型？'))return;
+  _tmplEditTypes=_tmplEditTypes.filter(t=>t!==type);
+  delete ALL_TMPL[type];
+  switchTmplType(_tmplEditTypes[0]);
+}
+// 儲存範本管理的所有變更
+function saveTemplateMgr(){
+  ALL_TMPL[_tmplCurType]=JSON.parse(JSON.stringify(_tmplRows));
+  save(SK.tmpl,ALL_TMPL);
+  REQ_TYPES=[..._tmplEditTypes];
+  save(SK.types,REQ_TYPES);
+  refreshTypeSelects();
+  closeTemplateMgr();
+  alert('✅ 範本已儲存！');
+}
+
+// ═══════════════════════════════════════════════════
+//  進度計算
+// ═══════════════════════════════════════════════════
+function calcProgress(r){
+  const subs=r.subtasks||[];
+  if(!subs.length) return {actualPct:0,expectPct:0};
+  const today=new Date().toISOString().split('T')[0];
+  let actualNum=0, expectNum=0, total=subs.length;
+
+  subs.forEach(st=>{
+    // 實際進度
+    if(st.status==='已完成'){
+      actualNum += 1;
+    } else if(st.status==='進行中'){
+      actualNum += (st.pct||0)/100;
+    }
+
+    // 預期進度：只看預計完成日
+    if(st.dueDate){
+      if(st.dueDate <= today){
+        // A：預計完成日在今日以前（含今日），直接算1
+        expectNum += 1;
+      } else if(st.status==='進行中' && st.startDate){
+        // B：進行中且預計完成日在今日之後，計算時間比例
+        const start=new Date(st.startDate).getTime();
+        const end=new Date(st.dueDate).getTime();
+        const now=new Date(today).getTime();
+        const totalDays=end-start;
+        if(totalDays>0 && now>start){
+          expectNum += Math.min((now-start)/totalDays, 1);
+        }
+      }
+    }
+  });
+
+  const actualPct=Math.round(actualNum/total*100);
+  const expectPct=Math.round(expectNum/total*100);
+  return {actualPct, expectPct};
+}
+// 依完成率回傳對應的顏色（紅/橘/藍）
+function pctColor(pct){ if(pct>=80)return 'var(--green)'; if(pct>=40)return 'var(--accent)'; return 'var(--orange)'; }
+
+// ═══════════════════════════════════════════════════
+//  欄寬
+// ═══════════════════════════════════════════════════
+const COL_DEF={name:140,person:120,status:72,start:90,due:90,actual:90,pct:90,note:160,ops:80};
+let COL_W={...COL_DEF};
+// 開啟欄寬輸入彈窗（點擊輸入數字方式調整欄寬）
+function openRzPopup(e,col){
+  e.stopPropagation();
+  document.querySelectorAll('.rz-popup').forEach(p=>p.remove());
+  const popup=document.createElement('div'); popup.className='rz-popup';
+  popup.innerHTML=`欄寬 <input type="number" value="${COL_W[col]}" min="40" max="300"> <button onclick="applyColW('${col}',this.previousElementSibling.value);this.closest('.rz-popup').remove()">套用</button>`;
+  popup.style.left=e.clientX+'px'; popup.style.top=e.clientY+'px';
+  document.body.appendChild(popup);
+  setTimeout(()=>document.addEventListener('click',()=>popup.remove(),{once:true}),50);
+}
+// 套用新的欄寬值並重新渲染
+function applyColW(col,val){ COL_W[col]=parseInt(val)||COL_DEF[col]; render(); }
+
+// ══════════════════════════════════════════════════
+//  欄寬拖曳調整
+// ══════════════════════════════════════════════════
+// 啟動滑鼠拖曳調整欄寬（mousedown 觸發，即時更新所有同欄 th/td）
+function startColResize(e, col){
+  e.preventDefault();
+  e.stopPropagation();
+  const rz = e.target;
+  rz.classList.add('dragging');
+  const startX = e.clientX;
+  const startW = COL_W[col];
+  const onMove = ev => {
+    const newW = Math.max(40, startW + ev.clientX - startX);
+    COL_W[col] = newW;
+    // 即時更新所有該欄的 th 和 td
+    document.querySelectorAll(`[data-col-id="${col}"]`).forEach(el => {
+      el.style.width = newW + 'px';
+      el.style.maxWidth = newW + 'px';
+    });
+  };
+  const onUp = () => {
+    rz.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    render();
+  };
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ══════════════════════════════════════════════════
+//  子任務拖曳排序
+// ══════════════════════════════════════════════════
+// 初始化子任務拖曳排序（只有按住 ⠿ 把手才能拖曳）
+function initStDragSort(ri) {
+  const tbody = document.querySelector(`#card-${ri} .st-table tbody`);
+  if (!tbody) return;
+  let dragSi = null;
+
+  // 只有在 drag-handle 上 mousedown 才啟用 draggable
+  tbody.querySelectorAll('td.drag-handle').forEach(handle => {
+    handle.addEventListener('mousedown', () => {
+      const tr = handle.closest('tr');
+      if (tr) tr.draggable = true;
+    });
+  });
+
+  tbody.addEventListener('dragstart', e => {
+    const tr = e.target.closest('tr[data-si]');
+    if (!tr) return;
+    dragSi = parseInt(tr.dataset.si);
+    tr.classList.add('dragging-row');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  tbody.addEventListener('dragend', e => {
+    const tr = e.target.closest('tr');
+    if (tr) { tr.classList.remove('dragging-row'); tr.draggable = false; }
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over-top','drag-over-bot'));
+    dragSi = null;
+  });
+
+  tbody.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const tr = e.target.closest('tr[data-si]');
+    if (!tr) return;
+    const overSi = parseInt(tr.dataset.si);
+    if (overSi === dragSi) return;
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over-top','drag-over-bot'));
+    const rect = tr.getBoundingClientRect();
+    tr.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bot');
+  });
+
+  tbody.addEventListener('drop', e => {
+    e.preventDefault();
+    const tr = e.target.closest('tr[data-si]');
+    if (!tr || dragSi === null) return;
+    const overSi = parseInt(tr.dataset.si);
+    if (overSi === dragSi) return;
+    const rect = tr.getBoundingClientRect();
+    const insertAfter = e.clientY >= rect.top + rect.height / 2;
+    const subs = DATA.requirements[ri].subtasks;
+    const [moved] = subs.splice(dragSi, 1);
+    let targetIdx = overSi > dragSi ? overSi - 1 : overSi;
+    if (insertAfter) targetIdx++;
+    subs.splice(targetIdx, 0, moved);
+    saveData();
+    render();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  Render
+// ═══════════════════════════════════════════════════
+function render(){
+  const ft=document.getElementById('filterType').value;
+  const fs=document.getElementById('filterStatus').value;
+  const fo=document.getElementById('filterOwner').value;
+  const fq=(document.getElementById('searchBox').value||'').toLowerCase();
+  const fm=document.getElementById('filterMember').value;
+  const fsys=_filterSys||(document.getElementById('filterSystem')||{}).value||'';
+  const reqs=DATA.requirements.filter(r=>{
+    if(ft&&r.type!==ft)return false;
+    if(fs&&r.status!==fs)return false;
+    if(fsys&&r.system!==fsys)return false;
+    if(fo&&!parseTags(r.owner).includes(fo))return false;
+    if(fq&&!r.name.toLowerCase().includes(fq)&&!r.id.toLowerCase().includes(fq))return false;
+    if(_filterStar && !r.starred) return false;
+    if(fm){
+      const hasMember=(r.subtasks||[]).some(st=>String(st.person||'').includes(fm));
+      const isOwner=parseTags(r.owner).includes(fm)||parseTags(r.devs||'').includes(fm);
+      if(!hasMember&&!isOwner)return false;
+    }
+    return true;
+  });
+  reqs.forEach(r=>{ r._origIdx = DATA.requirements.indexOf(r); });
+
+  // 排序：starred 釘選最前，其次保持原始順序
+  reqs.sort((a,b)=>{
+    const as=a.starred?1:0, bs=b.starred?1:0;
+    if(as!==bs) return bs-as;
+    return (a._origIdx||0)-(b._origIdx||0);
+  });
+
+  // Stats
+  const all=DATA.requirements;
+  const _curStatSel = document.getElementById('filterStatus').value;
+  // 產生統計卡片 HTML（可點擊觸發篩選）
+  function _statCard(label, val, cls, filterVal, extraStyle=''){
+    const isActive = _curStatSel === filterVal;
+    const activeStyle = isActive ? 'box-shadow:0 0 0 2px var(--accent);background:var(--surface2);' : '';
+    const clickable = filterVal !== null ? `style="cursor:pointer;${activeStyle}${extraStyle}" onclick="setStatusFilter('${filterVal}')" title="${filterVal===''?'顯示全部':isActive?'點擊取消篩選':'點擊篩選：'+label}"` : `style="${extraStyle}"`;
+    return `<div class="stat-card ${cls}" ${clickable}><div class="num">${val}</div><div class="lbl">${label}${isActive?' ✓':''}</div></div>`;
+  }
+  document.getElementById('statsBar').innerHTML=
+    _statCard('全部需求', all.length, '', '', '') +
+    _statCard('進行中', all.filter(r=>r.status==='進行中').length, 'or', '進行中') +
+    _statCard('待開始', all.filter(r=>r.status==='待開始').length, '', '待開始') +
+    _statCard('已完成', all.filter(r=>r.status==='已完成').length, 'gr', '已完成') +
+    _statCard('擱置',   all.filter(r=>r.status==='擱置').length,   'rd', '擱置') +
+    (()=>{
+    const sv=all.filter(r=>r.starred).length;
+    const isAct=_filterStar;
+    const aStyle=isAct?'box-shadow:0 0 0 2px #f59e0b;background:var(--surface2);':'';
+    return `<div class="stat-card" style="cursor:pointer;border-left:3px solid #f59e0b;${aStyle}" onclick="setStatusFilter('__star__')" title="${isAct?'取消重大篩選':'只看重大需求'}"><div class="num" style="color:#f59e0b">${sv}</div><div class="lbl">⭐ 重大${isAct?' ✓':''}</div></div>`;
+  })() +
+  ['光訊系統','帳務系統','減損系統'].map(sys=>{
+    const cnt=all.filter(r=>r.system===sys).length;
+    const isAct=_filterSys===sys;
+    const aStyle=isAct?'box-shadow:0 0 0 2px var(--accent);':'';
+    const colors={'光訊系統':'#0ea5e9','帳務系統':'#8b5cf6','減損系統':'#10b981'};
+    const col=colors[sys]||'var(--accent)';
+    return `<div class="stat-card" style="cursor:pointer;border-left:3px solid ${col};${aStyle}" onclick="setSysFilter('${sys}')" title="${isAct?'取消':'只看 '+sys}"><div class="num" style="color:${col}">${cnt}</div><div class="lbl">${sys.replace('系統','')}${isAct?' ✓':''}</div></div>`;
+  }).join('');
+
+  // Drop zone
+  const dz=document.getElementById('dropZone');
+  dz.style.display=DATA.requirements.length===0?'block':'none';
+
+  // Board
+  const board=document.getElementById('board');
+  if(!reqs.length){ board.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);font-size:.9rem">沒有符合條件的需求單</div>'; return; }
+
+  const W=COL_W;
+  board.innerHTML=reqs.map(r=>{
+    const ri=DATA.requirements.indexOf(r);
+    const {actualPct,expectPct}=calcProgress(r);
+    const diff=actualPct-expectPct;
+    const diffTag=diff>5?`<span class="tag-ahead">超前 ${diff}%</span>`:diff<-5?`<span class="tag-behind">落後 ${Math.abs(diff)}%</span>`:'<span class="tag-ok">準時</span>';
+
+    // 排序+篩選 subtasks
+let _subs = (r.subtasks||[]).map((st,si)=>({...st,_si:si}));
+// 篩選
+const _sf = _stFilter[ri]||{};
+if(_sf.col && _sf.vals && _sf.vals.length){
+  _subs = _subs.filter(st=>{
+    const v = String(st[_sf.col]||'');
+    return _sf.vals.includes(v);
+  });
+}
+// 排序
+if(_stSort.ri===ri && _stSort.col){
+  const col=_stSort.col, dir=_stSort.dir;
+  _subs.sort((a,b)=>{
+    let av=a[col]||'', bv=b[col]||'';
+    if(col==='pct'){av=Number(av);bv=Number(bv);}
+    return av<bv?-dir:av>bv?dir:0;
+  });
+}
+const stRows=_subs.map((st)=>{ const si=st._si;
+      const pc=st.pct||0;
+      const isDone=st.status==='已完成';
+      const _fm=document.getElementById('filterMember')?.value||'';
+      const _memberMatch=_fm&&String(st.person||'').includes(_fm);
+      return `<tr class="${isDone?'dimmed':''} ${st.status==='進行中'?'highlighted':''}" data-ri="${ri}" data-si="${si}" style="${_memberMatch?'background:rgba(99,102,241,.13);outline:2px solid rgba(99,102,241,.4);outline-offset:-1px;border-radius:4px;':''}">
+        <td class="drag-handle" title="拖曳排序">⠿</td>
+        <td style="width:${W.name}px;max-width:${W.name}px" data-col-id="name"><input class="di" value="${st.name}" onchange="updateStField(${ri},${si},'name',this.value)"></td>
+        <td style="width:${W.person}px;max-width:${W.person}px" data-col-id="person">
+          <div id="subperson-${ri}-${si}" class="sub-person-wrap"></div>
+        </td>
+        <td style="width:${W.status}px;max-width:${W.status}px" data-col-id="status">
+          <select class="es" onchange="updateStField(${ri},${si},'status',this.value)">
+            ${['待開始','進行中','已完成','擱置'].map(s=>`<option${st.status===s?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="width:${W.start}px;max-width:${W.start}px" data-col-id="start"><input type="date" class="di" value="${st.startDate||''}" ${isDone?'disabled':''} onchange="updateStField(${ri},${si},'startDate',this.value)"></td>
+        <td style="width:${W.due}px;max-width:${W.due}px" data-col-id="due"><input type="date" class="di" value="${st.dueDate||''}" ${isDone?'disabled':''} onchange="updateStField(${ri},${si},'dueDate',this.value)"></td>
+        <td style="width:${W.actual}px;max-width:${W.actual}px" data-col-id="actual"><input type="date" class="di ${st.actualDate?'done-date':''}" value="${st.actualDate||''}" onchange="updateStField(${ri},${si},'actualDate',this.value)"></td>
+        <td style="width:${W.pct}px;max-width:${W.pct}px" data-col-id="pct">
+          <div class="pc-wrap">
+            <div class="pc-bar" onclick="this.nextElementSibling.focus();this.nextElementSibling.select()">
+              <div class="pc-fill" style="width:${pc}%;background:${pctColor(pc)}"></div>
+            </div>
+            <input class="pc-inp" type="number" value="${pc}" min="0" max="100" onchange="updateStPct(${ri},${si},this.value);render()">
+            <span style="font-size:.66rem;color:var(--text3)">%</span>
+          </div>
+        </td>
+        <td style="width:${W.note}px;max-width:${W.note}px" data-col-id="note">
+          <input class="di" value="${st.note||''}" placeholder="備註" onchange="updateStField(${ri},${si},'note',this.value)">
+        </td>
+        <td style="width:${W.ops}px;max-width:${W.ops}px;text-align:center;white-space:nowrap">
+          <button onclick="openStModal(${ri},${si})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.82rem" title="編輯">✏️</button>
+          <button onclick="copySt(${ri},${si})"    style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:.82rem" title="複製">📋</button>
+          <button onclick="delSt(${ri},${si})"     style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:.82rem" title="刪除">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <div class="req-card" data-status="${r.status}" id="card-${ri}" style="${r.starred?'border:2px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15);':''}">
+      <div class="req-header">
+        <div class="req-header-left" onclick="toggleCard(${ri})">
+          <div class="req-header-top">
+            <input type="checkbox" class="req-check" id="chk-${ri}" onclick="event.stopPropagation();toggleGanttSelect(${ri})" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+            <button onclick="event.stopPropagation();toggleStar(${ri})" title="${r.starred?'取消重大需求':'標記為重大需求'}" style="background:none;border:none;font-size:1rem;cursor:pointer;padding:0 2px;line-height:1">${r.starred?'⭐':'☆'}</button>
+            <span class="req-id">${r.id}</span>
+            <span class="badge b-type">${r.type}</span>
+            <span class="badge b-${r.status}">${r.status}</span>
+          </div>
+          <div class="req-title">${r.name}</div>
+          <div class="meta-row">
+            <span class="meta-item">👤 ${r.owner}</span>
+            <span class="meta-item">👥 ${r.devs}</span>
+            ${r.startDate?`<span class="meta-item">📅 ${r.startDate} ～ ${r.dueDate||'?'}</span>`:''}
+          </div>
+        </div>
+        <div class="dual-wrap" onclick="event.stopPropagation()">
+          <div class="dp-row">
+            <span class="dp-label">實際進度</span>
+            <div class="dp-bg"><div class="dp-fill-actual" style="width:${actualPct}%"></div></div>
+            <span class="dp-pct a">${actualPct}%</span>
+            <span style="font-size:.65rem;color:var(--text3);margin-left:4px">(已完成+進行中百分比)</span>
+            ${diffTag}
+          </div>
+          <div class="dp-row">
+            <span class="dp-label">預期進度</span>
+            <div class="dp-bg"><div class="dp-fill-expect" style="width:${expectPct}%"></div></div>
+            <span class="dp-pct e">${expectPct}%</span>
+            <span style="font-size:.65rem;color:var(--text3);margin-left:4px">(逾時+進行中時間比)</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <div style="display:flex;gap:6px">
+            <button title="向上移" onclick="event.stopPropagation();moveReq(${ri},-1)" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:.75rem;color:var(--text2)">▲</button>
+            <button title="向下移" onclick="event.stopPropagation();moveReq(${ri},1)"  style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:.75rem;color:var(--text2)">▼</button>
+            <button class="btn gray" style="font-size:.72rem;padding:4px 10px" onclick="event.stopPropagation();openReqModal(${ri})">✏️ 編輯</button>
+            <button class="btn red"  style="font-size:.72rem;padding:4px 10px" onclick="event.stopPropagation();deleteReq(${ri})">🗑</button>
+          </div>
+          <span class="toggle-icon" onclick="toggleCard(${ri})">▼</span>
+        </div>
+      </div>
+      <div class="subtasks">
+        <div class="st-table-wrap">
+          <table class="st-table">
+            <thead><tr>
+              <th style="width:28px;min-width:28px;padding:4px 2px;border-right:1px solid var(--border)"></th>
+              <th style="width:${W.name}px;position:relative" data-col-id="name">子任務名稱<span class="rz" onmousedown="startColResize(event,'name')"></span>${stThBtn(ri,'name')}</th>
+              <th style="width:${W.person}px;position:relative" data-col-id="person">負責人<span class="rz" onmousedown="startColResize(event,'person')"></span>${stThBtn(ri,'person')}</th>
+              <th style="width:${W.status}px;position:relative" data-col-id="status">狀態<span class="rz" onmousedown="startColResize(event,'status')"></span>${stThBtn(ri,'status')}</th>
+              <th style="width:${W.start}px;position:relative" data-col-id="start">開始日<span class="rz" onmousedown="startColResize(event,'start')"></span>${stThBtn(ri,'startDate')}</th>
+              <th style="width:${W.due}px;position:relative" data-col-id="due">完成日<span class="rz" onmousedown="startColResize(event,'due')"></span>${stThBtn(ri,'dueDate')}</th>
+              <th style="width:${W.actual}px;position:relative" data-col-id="actual">實際完成<span class="rz" onmousedown="startColResize(event,'actual')"></span>${stThBtn(ri,'actualDate')}</th>
+              <th style="width:${W.pct}px;position:relative" data-col-id="pct">完成率<span class="rz" onmousedown="startColResize(event,'pct')"></span>${stThBtn(ri,'pct')}</th>
+              <th style="width:${W.note}px;position:relative" data-col-id="note">備註<span class="rz" onmousedown="startColResize(event,'note')"></span></th>
+              <th style="width:${W.ops}px">操作</th>
+            </tr></thead>
+            <tbody>${stRows}</tbody>
+          </table>
+        </div>
+        <div class="add-st-row"><button onclick="addStRow(${ri})">＋ 新增子任務</button></div>
+        <div class="notes-wrap">
+          <textarea rows="2" placeholder="備註…" onchange="updateReqNotes(${ri},this.value)">${r.notes||''}</textarea>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  setTimeout(()=>{
+    DATA.requirements.forEach((r,ri)=>{
+      (r.subtasks||[]).forEach((st,si)=>{
+        const id='subperson-'+ri+'-'+si;
+        const el=document.getElementById(id);
+        if(el&&!el.dataset.bound){
+          initTagInput(id, parseTags(st.person||''), DATA.members||[], (vals)=>{
+            DATA.requirements[ri].subtasks[si].person = fmtTags(vals) || '－';
+            saveData();
+          });
+          el.dataset.bound='1';
+        }
+      });
+      // 初始化子任務拖曳排序
+      if((r.subtasks||[]).length > 0) initStDragSort(ri);
+    });
+  },0);
+  restoreOpenCards();
+  renderSidebar();
+}
+
+
+// ═══════════════════════════════════════════════════
+//  匯入 / 匯出 xlsx
+// ═══════════════════════════════════════════════════
+function fmtDate(val){
+  if(!val)return '';
+  if(val instanceof Date) return val.getFullYear()+'-'+String(val.getMonth()+1).padStart(2,'0')+'-'+String(val.getDate()).padStart(2,'0');
+  const s=String(val).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,10);
+  if(/^\d{4}\/\d{2}\/\d{2}/.test(s))return s.replace(/\//g,'-').substring(0,10);
+  return s;
+}
+// 處理檔案拖放匯入事件
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').style.background='rgba(0,122,255,.04)';
+  const f=e.dataTransfer.files[0];
+  if(f)processXlsx(f);
+}
+// 處理 xlsx 檔案選擇匯入事件
+function importXlsx(e){
+  const f=e.target.files[0]; if(!f)return;
+  processXlsx(f); e.target.value='';
+}
+// 解析 xlsx 檔案並匯入需求單與成員資料
+function processXlsx(file){
+  if(typeof XLSX==='undefined'){alert('❌ XLSX 函式庫未載入，請確認網路後重新整理');return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      // 成員清單
+      const ms=wb.Sheets['成員清單'];
+      if(ms){
+        const mr=XLSX.utils.sheet_to_json(ms,{defval:''});
+        const members=mr.map(r=>String(r['成員姓名']||'').trim()).filter(Boolean);
+        if(members.length>0)DATA.members=members;
+      }
+      // 需求單
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
+      if(!rows||!rows.length){alert('需求單工作表沒有資料');return;}
+      const map={},order=[];
+      rows.forEach(row=>{
+        const rid=String(row['需求單編號']||'').trim(); if(!rid)return;
+        if(!map[rid]){
+          order.push(rid);
+          map[rid]={id:rid,name:String(row['需求單名稱']||''),type:String(row['需求類型']||'其他'),system:String(row['系統別']||''),
+            owner:String(row['負責人']||'－'),devs:String(row['成員']||'－'),status:String(row['狀態']||'待開始'),
+            startDate:fmtDate(row['預計開始日']),dueDate:fmtDate(row['預計完成日']),actualDate:fmtDate(row['實際完成日']),
+            notes:String(row['備註']||''),createdDate:String(row['建立日期']||''),lastUpdated:String(row['最後更新時間']||''),
+            subtasks:[]};
+        }
+        const sn=String(row['子功能名稱']||'').trim();
+        if(sn) map[rid].subtasks.push({name:sn,person:String(row['子功能負責人']||'－'),
+          startDate:fmtDate(row['子功能開始日']),dueDate:fmtDate(row['子功能完成日']),
+          actualDate:fmtDate(row['子功能實際完成']),status:String(row['子功能狀態']||'待開始'),
+          pct:parseInt(String(row['子功能完成率']||'0').replace('%',''))||0, note:String(row['子功能備註']||'')});
+      });
+      const imported=order.map(id=>map[id]).filter(Boolean);
+      if(!imported.length){alert('找不到有效需求單資料，請確認欄位標題正確');return;}
+      const choice = DATA.requirements.length > 0
+        ? confirm('目前看板已有 '+DATA.requirements.length+' 筆需求單。\n\n✅ 確定 → 合併（保留現有，加入新的）\n❌ 取消 → 放棄匯入')
+        : true;
+      if(!choice) return;
+      if(DATA.requirements.length > 0){
+        // 合併：以需求單編號去重，已存在的不覆蓋
+        const existIds = new Set(DATA.requirements.map(r=>r.id));
+        const newReqs = imported.filter(r=>!existIds.has(r.id));
+        const dupCount = imported.length - newReqs.length;
+        DATA.requirements = DATA.requirements.concat(newReqs);
+        saveData(); refreshOwnerFilter();
+        render(); alert('✅ 匯入完成！新增 '+newReqs.length+' 筆' + (dupCount>0?'，已略過 '+dupCount+' 筆重複編號':''));
+      } else {
+        DATA.requirements = imported; saveData(); refreshOwnerFilter();
+        render(); alert('✅ 匯入完成！共 '+imported.length+' 筆需求單');
+      } render();
+      alert('✅ 成功匯入 '+imported.length+' 筆需求單！');
+    }catch(err){alert('匯入失敗：'+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+// 將目前所有需求單匯出為 xlsx 檔案
+function exportXlsx(){
+  const rows=[];
+  DATA.requirements.forEach(r=>{
+    const base={'需求單編號':r.id,'需求單名稱':r.name,'需求類型':r.type,'系統別':r.system||'','負責人':r.owner,'成員':r.devs,
+      '狀態':r.status,'預計開始日':r.startDate,'預計完成日':r.dueDate,'實際完成日':r.actualDate,
+      '建立日期':r.createdDate?new Date(r.createdDate).toLocaleString('zh-TW'):'',
+      '最後更新時間':r.lastUpdated?new Date(r.lastUpdated).toLocaleString('zh-TW'):'',
+      '子功能數量':(r.subtasks||[]).length,'備註':r.notes||''};
+    if(!r.subtasks||!r.subtasks.length){rows.push(base);return;}
+    r.subtasks.forEach((st,si)=>rows.push({...base,'子功能序':si+1,'子功能名稱':st.name,
+      '子功能負責人':st.person,'子功能開始日':st.startDate,'子功能完成日':st.dueDate,
+      '子功能實際完成':st.actualDate,'子功能狀態':st.status,'子功能完成率':(st.pct||0)+'%','子功能備註':st.note||''}));
+  });
+  const memberRows=(DATA.members||[]).map(m=>({'成員姓名':m}));
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(rows.length?rows:[{}]);
+  const ws2=XLSX.utils.json_to_sheet(memberRows.length?memberRows:[{'成員姓名':''}]);
+  Object.keys(ws1).forEach(k=>{ if(k[0]!=='!') ws1[k].z='@'; });
+  Object.keys(ws2).forEach(k=>{ if(k[0]!=='!') ws2[k].z='@'; });
+  XLSX.utils.book_append_sheet(wb,ws1,'需求單');
+  XLSX.utils.book_append_sheet(wb,ws2,'成員清單');
+  XLSX.writeFile(wb,'PM需求單_v34_'+todayStr()+'.xlsx');
+}
+
+// ═══════════════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════════════
+refreshTypeSelects();
+refreshOwnerFilter();
+fetchHols(new Date().getFullYear());
+render();
+
+// 卡片展開狀態管理（已移至頂端宣告）
+
+// 切換需求單的重大標記（⭐釘選）
+function toggleStar(ri){
+  const r = DATA.requirements[ri];
+  if(!r) return;
+  r.starred = !r.starred;
+  saveData();
+  render();
+}
+
+// 手動調整需求單排序位置（上移/下移）
+function moveReq(ri, dir){
+  const arr = DATA.requirements;
+  const ni = ri + dir;
+  if(ni < 0 || ni >= arr.length) return;
+  [arr[ri], arr[ni]] = [arr[ni], arr[ri]];
+  saveData();
+  render();
+}
+
+// 設定系統別篩選條件
+function setSysFilter(sys){
+  _filterSys = (_filterSys===sys) ? '' : sys;
+  // 同步 select 下拉（讓清除篩選可以用）
+  const sel=document.getElementById('filterSystem');
+  if(sel) sel.value = _filterSys;
+  render();
+}
+
+// 設定狀態篩選條件
+function setStatusFilter(val){
+  if(val === '__star__'){
+    _filterStar = !_filterStar;
+    render();
+    return;
+  }
+  const sel = document.getElementById('filterStatus');
+  if(sel.value === val) sel.value = '';
+  else sel.value = val;
+  render();
+}
+
+// 清除所有篩選條件
+function clearFilters(){
+  document.getElementById('filterType').value='';
+  document.getElementById('filterSystem').value='';
+  _filterSys='';
+  document.getElementById('filterStatus').value='';
+  document.getElementById('filterOwner').value='';
+  document.getElementById('filterMember').value='';
+  document.getElementById('searchBox').value='';
+  _filterStar=false;
+  render();
+}
+
+// 清除所有看板資料（含確認提示）
+function clearAllData(){
+  if(!confirm('⚠️ 確定要清除所有需求單資料嗎？\n\n此操作無法復原，建議先「匯出 xlsx」備份！'))return;
+  if(!confirm('再次確認：將刪除全部 '+DATA.requirements.length+' 筆需求單，確定？'))return;
+  DATA.requirements = [];
+  saveData();
+  render();
+  renderSidebar();
+  showToast('✅ 已清除所有需求單');
+}
+
+// 展開/收合需求單卡片
+function toggleCard(ri){
+  const card = document.getElementById('card-'+ri);
+  if(!card) return;
+  if(card.classList.contains('open')){
+    card.classList.remove('open');
+    _openCards.delete(ri);
+  } else {
+    card.classList.add('open');
+    _openCards.add(ri);
+  }
+}
+// 展開所有需求單卡片
+function expandAll(){
+  document.querySelectorAll('.req-card').forEach(card=>{
+    card.classList.add('open');
+    const ri = parseInt(card.id.replace('card-',''));
+    if(!isNaN(ri)) _openCards.add(ri);
+  });
+}
+// 收合所有需求單卡片
+function collapseAll(){
+  document.querySelectorAll('.req-card').forEach(card=>{
+    card.classList.remove('open');
+  });
+  _openCards.clear();
+}
+// 渲染後還原上次展開的卡片狀態
+function restoreOpenCards(){
+  _openCards.forEach(ri=>{
+    const el = document.getElementById('card-'+ri);
+    if(el) el.classList.add('open');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  側邊欄
+// ═══════════════════════════════════════════════════
+let _sidebarOpen = true;
+
+// 切換今日儀表板側欄的展開/收合
+function toggleSidebar(){
+  _sidebarOpen = !_sidebarOpen;
+  const sb = document.getElementById('sidebar');
+  const bc = document.getElementById('boardCol');
+  const btn = document.getElementById('sidebarOpenBtn');
+  sb.classList.toggle('collapsed', !_sidebarOpen);
+  if(bc) bc.classList.toggle('no-sidebar-pad', !_sidebarOpen);
+  btn.style.display = _sidebarOpen ? 'none' : 'block';
+}
+
+// 渲染今日儀表板（逾期、本週、近期子任務）
+function renderSidebar(){
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  // 本週日
+  const dow = today.getDay();
+  const sunday = new Date(today); sunday.setDate(today.getDate() + (7 - (dow===0?7:dow)));
+  const sundayStr = sunday.toISOString().split('T')[0];
+  // 7天後
+  const plus7 = new Date(today); plus7.setDate(today.getDate()+7);
+  const plus7Str = plus7.toISOString().split('T')[0];
+
+  const overdue=[], thisweek=[], upcoming=[], inprogress=[];
+
+  DATA.requirements.forEach((r,ri)=>{
+    (r.subtasks||[]).forEach((st,si)=>{
+      if(st.status==='已完成'||st.status==='擱置') return;
+      const due = st.dueDate||'';
+      const start = st.startDate||'';
+      if(due && due < todayStr){
+        overdue.push({r,ri,st,si,due,start});
+      } else if(due && due >= todayStr && due <= sundayStr){
+        thisweek.push({r,ri,st,si,due,start});
+      } else if(start && start > todayStr && start <= plus7Str){
+        upcoming.push({r,ri,st,si,due,start});
+      }
+      // 進行中：狀態為進行中 且 今日介於開始日～完成日之間
+      if(st.status==='進行中' && start && due && start <= todayStr && due >= todayStr){
+        inprogress.push({r,ri,st,si,due,start});
+      }
+    });
+  });
+
+  // 產生進行中子任務的儀表板項目 HTML
+  function mkItemsInProgress(list){
+    if(!list.length) return '<div class="sb-empty">—</div>';
+    return list.map(({r,ri,st})=>{
+      const pct = st.pct||0;
+      const daysLeft = st.dueDate ? Math.ceil((new Date(st.dueDate)-new Date())/(1000*60*60*24)) : null;
+      const daysTag = daysLeft!==null ? `<span style="font-size:.6rem;color:${daysLeft<=3?'var(--red)':'var(--text3)'}">${daysLeft<=0?'今日到期':daysLeft+'天後到期'}</span>` : '';
+      return `<div class="sb-item" style="border-left:3px solid var(--accent)" onclick="jumpToCard(${ri})">
+        <div class="sb-req">${r.id} · ${r.name}</div>
+        <div class="sb-name">${st.name} ${daysTag}</div>
+        <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:4px;background:var(--surface2);border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:4px"></div>
+          </div>
+          <span style="font-size:.65rem;color:var(--accent);font-weight:600">${pct}%</span>
+        </div>
+        <div class="sb-date">負責人：${st.person||'—'} ｜ ${st.startDate||'?'} ～ ${st.dueDate||'?'}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // 產生儀表板子任務項目 HTML（逾期/本週/近期）
+  function mkItems(list, cls){
+    if(!list.length) return '<div class="sb-empty">—</div>';
+    return list.map(({r,ri,st,due,start})=>`
+      <div class="sb-item ${cls}" onclick="jumpToCard(${ri})">
+        <div class="sb-req">${r.id} · ${r.name}</div>
+        <div class="sb-name">${st.name}</div>
+        <div class="sb-date">${cls==='upcoming'?'開始：'+start:'完成日：'+due}</div>
+      </div>`).join('');
+  }
+
+  const fmt = today.toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+
+  const _sc = document.getElementById('sidebarContent');
+  if(!_sc) return;
+  if(!DATA.requirements.length){
+    _sc.innerHTML = '<div style="padding:32px 20px;text-align:center;color:var(--text3)"><div style="font-size:2rem;margin-bottom:8px">📭</div><div style="font-size:.88rem">尚無需求單資料</div></div>';
+    return;
+  }
+  _sc.innerHTML = `
+    <div style="padding:10px 16px 4px">
+      <div style="font-size:.82rem;font-weight:600;color:var(--text)">${fmt}</div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-title" style="color:var(--accent)">🔵 進行中子任務 <span style="background:rgba(0,122,255,.12);color:var(--accent);border-radius:12px;padding:1px 8px;font-size:.7rem">${inprogress.length}</span></div>
+      ${mkItemsInProgress(inprogress)}
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-title overdue">🔴 已逾時 <span style="background:rgba(255,59,48,.12);color:var(--red);border-radius:12px;padding:1px 8px;font-size:.7rem">${overdue.length}</span></div>
+      ${mkItems(overdue,'overdue')}
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-title thisweek">🟡 本週應完成 <span style="background:rgba(255,149,0,.12);color:var(--orange);border-radius:12px;padding:1px 8px;font-size:.7rem">${thisweek.length}</span></div>
+      ${mkItems(thisweek,'thisweek')}
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-title upcoming">🟢 即將開始（7天內）<span style="background:rgba(52,199,89,.12);color:var(--green);border-radius:12px;padding:1px 8px;font-size:.7rem">${upcoming.length}</span></div>
+      ${mkItems(upcoming,'upcoming')}
+    </div>`;
+}
+
+// 點擊儀表板項目時捲動並高亮對應的需求卡片
+function jumpToCard(ri){
+  const card = document.getElementById('card-'+ri);
+  if(!card) return;
+  if(!card.classList.contains('open')){
+    card.classList.add('open');
+    _openCards.add(ri);
+  }
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+  card.style.outline = '2px solid var(--accent)';
+  setTimeout(()=> card.style.outline='', 1500);
+}
+
+// ══ AI 子任務建議 ══
+let _aiTargetRi = null; // 要插入子任務的需求單 index
+
+// 開啟 AI 子任務建議 Modal
+function openAiSuggest(){
+  // 先確認有需求單名稱
+  const name = document.getElementById('r-name').value.trim();
+  const type = document.getElementById('r-type').value;
+  if(!name){ alert('請先填入需求單名稱再使用 AI 建議'); return; }
+
+  // 重置畫面
+  document.getElementById('aiLoading').style.display = 'none';
+  document.getElementById('aiError').style.display = 'none';
+  document.getElementById('aiResultSection').style.display = 'none';
+  document.getElementById('aiPromptExtra').value = '';
+
+  // 顯示已存的 Key
+  const savedKey = localStorage.getItem('or_api_key')||'';
+  const keyInput = document.getElementById('aiKeyInput');
+  keyInput.value = savedKey;
+  document.getElementById('aiKeyStatus').textContent = savedKey ? '✅ 已有儲存的 API Key' : '';
+
+  openModal('aiOverlay');
+}
+
+// 儲存 OpenRouter API Key 到 localStorage
+function saveAiKey(){
+  const k = document.getElementById('aiKeyInput').value.trim();
+  if(!k){ alert('請輸入 API Key'); return; }
+  localStorage.setItem('or_api_key', k);
+  document.getElementById('aiKeyStatus').textContent = '✅ API Key 已儲存';
+}
+
+// 呼叫 AI API 根據需求名稱建議子任務清單
+async function generateAiSubtasks(){
+  const key = document.getElementById('aiKeyInput').value.trim() || localStorage.getItem('or_api_key')||'';
+  if(!key){ alert('請輸入並儲存你的 OpenRouter API Key'); return; }
+
+  const name = document.getElementById('r-name').value.trim();
+  const type = document.getElementById('r-type').value;
+  const extra = document.getElementById('aiPromptExtra').value.trim();
+
+  // 撈出此類型的範本子任務名稱，提供給 AI 參考風格
+  const tmplItems = (ALL_TMPL[type] || []).map(t => t.name).filter(Boolean);
+  const tmplHint = tmplItems.length > 0
+    ? `\n\n參考範本（此類型現有的子任務名稱，請參考這個命名風格，名稱盡量簡短、4字以內）：\n${tmplItems.join('、')}`
+    : '';
+
+  const prompt = `你是一個專業的 PM 助理，請根據以下需求單資訊，幫我拆解出 5～8 個具體可執行的子任務。
+
+需求單名稱：${name}
+需求類型：${type}
+${extra ? '補充說明：'+extra : ''}${tmplHint}
+
+請用 JSON 陣列格式回傳，每個元素包含：
+- name: 子任務名稱（繁體中文，簡短具體，4字以內為佳）
+- days: 預估完成天數（整數）
+- note: 簡短說明（一句話）
+
+只回傳 JSON 陣列，不要其他文字。範例格式：
+[{"name":"需求訪談","days":2,"note":"與stakeholder確認需求細節"},...]`;
+
+  document.getElementById('aiLoading').style.display = 'block';
+  document.getElementById('aiError').style.display = 'none';
+  document.getElementById('aiResultSection').style.display = 'none';
+  document.getElementById('aiGenerateBtn').disabled = true;
+
+  try {
+    const aiModel = document.getElementById('aiModelSelect').value;
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://pm-kanban.local',
+        'X-Title': 'PM Kanban Tool'
+      },
+      body: JSON.stringify({
+        model: aiModel,
+        messages: [
+          { role: 'system', content: '你是一個專業的 PM 助理，只回傳 JSON，不加任何說明文字或 markdown。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+
+    if(!res.ok){
+      let errMsg = `HTTP ${res.status}`;
+      try{
+        const err = await res.json();
+        const raw = err.error?.metadata?.raw || '';
+        errMsg = err.error?.message || errMsg;
+        if(raw) errMsg += '\n詳細：' + raw;
+      }catch(_){}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    let rawText = (data.choices?.[0]?.message?.content || '').trim();
+
+    if(!rawText) throw new Error('模型回傳空內容，請換一個模型試試');
+
+    // 清除 markdown code block（多種格式）
+    rawText = rawText.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+
+    // 如果 JSON 被截斷（結尾不是 ] ），嘗試補全
+    if(!rawText.endsWith(']')){
+      const lastBrace = rawText.lastIndexOf('}');
+      if(lastBrace > -1) rawText = rawText.substring(0, lastBrace+1) + ']';
+    }
+
+    let tasks;
+    try{
+      tasks = JSON.parse(rawText);
+    } catch(parseErr){
+      throw new Error('JSON 解析失敗，模型回傳：' + rawText.substring(0,200));
+    }
+    if(!Array.isArray(tasks) || tasks.length === 0) throw new Error('模型未回傳有效的子任務陣列');
+    renderAiResult(tasks);
+
+  } catch(e) {
+    document.getElementById('aiError').style.display = 'block';
+    document.getElementById('aiError').textContent = '❌ 錯誤：' + e.message + '\n\n請確認 API Key 正確，或嘗試更換免費模型。';
+  } finally {
+    document.getElementById('aiLoading').style.display = 'none';
+    document.getElementById('aiGenerateBtn').disabled = false;
+  }
+}
+
+// 渲染 AI 建議的子任務選擇清單
+function renderAiResult(tasks){
+  const list = document.getElementById('aiResultList');
+  list.innerHTML = tasks.map((t,i)=>`
+    <div class="ai-item selected" id="ai-item-${i}" onclick="toggleAiItem(${i})">
+      <input type="checkbox" id="ai-cb-${i}" checked onclick="event.stopPropagation();toggleAiItem(${i})">
+      <div class="ai-item-body">
+        <div class="ai-item-name">${t.name}</div>
+        <div class="ai-item-meta">預估 ${t.days} 天　｜　${t.note||''}</div>
+      </div>
+    </div>`).join('');
+  list._tasks = tasks;
+  document.getElementById('aiResultSection').style.display = 'block';
+}
+
+// 切換 AI 建議子任務的選取狀態
+function toggleAiItem(i){
+  const item = document.getElementById('ai-item-'+i);
+  const cb = document.getElementById('ai-cb-'+i);
+  const selected = item.classList.toggle('selected');
+  cb.checked = selected;
+}
+
+// 全選或全不選 AI 建議子任務
+function aiSelectAll(val){
+  const list = document.getElementById('aiResultList');
+  (list._tasks||[]).forEach((_,i)=>{
+    const item = document.getElementById('ai-item-'+i);
+    const cb = document.getElementById('ai-cb-'+i);
+    if(val){ item.classList.add('selected'); cb.checked = true; }
+    else { item.classList.remove('selected'); cb.checked = false; }
+  });
+}
+
+// 將選取的 AI 建議子任務插入需求單
+function insertAiSubtasks(){
+  const list = document.getElementById('aiResultList');
+  const tasks = list._tasks||[];
+  const selected = tasks.filter((_,i)=> document.getElementById('ai-cb-'+i)?.checked);
+
+  if(!selected.length){ alert('請至少勾選一個子任務'); return; }
+
+  // 如果是新增模式（editRi<0），直接從 modal 欄位建立需求單並 push
+  if(editRi < 0){
+    const now = new Date().toISOString();
+    const newReq = {
+      id:       document.getElementById('r-id').value||'RE'+Date.now(),
+      name:     document.getElementById('r-name').value||'新需求單',
+      type:     document.getElementById('r-type').value,
+      owner:    fmtTags(getTagVals('ownerWrap'))||'－',
+      devs:     fmtTags(getTagVals('devsWrap'))||'－',
+      status:   document.getElementById('r-status').value,
+      startDate:document.getElementById('r-start').value,
+      dueDate:  document.getElementById('r-due').value,
+      actualDate:document.getElementById('r-actual').value,
+      notes:'', subtasks:[],
+      createdDate:now, lastUpdated:now
+    };
+    editRi = DATA.requirements.length;
+    DATA.requirements.push(newReq);
+    saveData();
+  }
+
+  // 用 editRi 直接定位
+  const ri = editRi;
+  if(ri < 0 || ri >= DATA.requirements.length){ alert('請先儲存需求單'); return; }
+
+  const today = new Date().toISOString().split('T')[0];
+  const r = DATA.requirements[ri];
+  if(!r.subtasks) r.subtasks = [];
+
+  selected.forEach(t=>{
+    const startDate = today;
+    const due = new Date(); due.setDate(due.getDate() + (t.days||3));
+    const dueDate = due.toISOString().split('T')[0];
+    r.subtasks.push({
+      name: t.name,
+      person: r.owner||'',
+      status: '待開始',
+      startDate,
+      dueDate,
+      actualDate: '',
+      pct: 0,
+      note: t.note||''
+    });
+  });
+
+  saveData();
+  render();
+  closeModal('aiOverlay');
+  closeModal('reqOverlay');
+
+  // 展開對應卡片
+  setTimeout(()=>{
+    _openCards.add(ri);
+    render();
+    jumpToCard(ri);
+  }, 100);
+
+  // 顯示成功提示
+  showToast(`✅ 已加入 ${selected.length} 個 AI 建議子任務`);
+}
+
+// 顯示短暫通知訊息（右下角浮動提示）
+function showToast(msg){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1C1C1E;color:#fff;padding:10px 22px;border-radius:20px;font-size:.9rem;z-index:9999;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 2500);
+}
+
+
+</script>
+
+<!-- Modal: 批次匯入需求單 -->
+<div class="overlay" id="bulkImportOverlay" onclick="if(event.target===this)closeModal('bulkImportOverlay')">
+  <div class="modal" style="max-width:540px">
+    <h3 style="background:linear-gradient(135deg,#059669,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent">📦 批次匯入需求單</h3>
+    <p style="font-size:.88rem;color:var(--text2);margin:0 0 12px">上傳簡易 Excel，系統自動套用範本子任務；沒有範本的類型由 AI 生成。</p>
+
+    <div id="biKeySection" style="margin-bottom:12px">
+      <label style="font-size:.85rem;color:var(--text2)">OpenRouter API Key（無範本的需求才會使用）</label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <input type="password" id="biKeyInput" placeholder="sk-or-v1-..." style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem">
+        <button onclick="localStorage.setItem('or_api_key',document.getElementById('biKeyInput').value);showToast('✅ API Key 已儲存')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 14px;cursor:pointer;font-size:.85rem">儲存</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label style="font-size:.85rem;color:var(--text2)">沒有範本的需求單，子任務來源</label>
+      <select id="biSubtaskMode" onchange="toggleBiAiSection()" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;margin-top:4px">
+        <option value="default_tmpl">⚡ 套用預設模板（最快，不需 AI）</option>
+        <option value="empty">📋 只建需求單，不長子任務</option>
+        <option value="ai">🤖 AI 生成（需 API Key，較慢）</option>
+      </select>
+    </div>
+
+    <div id="biDefaultTmplSection" style="margin-bottom:12px;background:var(--surface2);border-radius:8px;padding:10px">
+      <label style="font-size:.85rem;color:var(--text2)">套用哪個模板？</label>
+      <select id="biDefaultTmpl" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.88rem;margin-top:4px"></select>
+      <p style="font-size:.8rem;color:var(--text2);margin:6px 0 0">匯入後可針對個別需求單手動調整子任務</p>
+    </div>
+
+    <div id="biAiSection" style="display:none">
+      <div id="biKeySection" style="margin-bottom:12px">
+        <label style="font-size:.85rem;color:var(--text2)">OpenRouter API Key</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <input type="password" id="biKeyInput" placeholder="sk-or-v1-..." style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem">
+          <button onclick="localStorage.setItem('or_api_key',document.getElementById('biKeyInput').value);showToast('✅ API Key 已儲存')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 14px;cursor:pointer;font-size:.85rem">儲存</button>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:.85rem;color:var(--text2)">AI 模型</label>
+        <select id="biModelSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.88rem;margin-top:4px">
+          <option value="openrouter/free">⭐ 自動選最佳免費模型</option>
+          <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B</option>
+          <option value="meta-llama/llama-3.3-70b-instruct:free">Meta Llama 3.3 70B</option>
+          <option value="openai/gpt-oss-20b:free">OpenAI GPT-OSS 20B</option>
+        </select>
+      </div>
+    </div>
+
+    <label class="btn green" style="cursor:pointer;display:inline-block;margin-bottom:12px">
+      📂 選擇 Excel 檔案
+      <input type="file" id="bulkImportFile" accept=".xlsx" style="display:none" onchange="startBulkImport(event)">
+    </label>
+    <div style="font-size:.8rem;color:var(--text2);margin-bottom:16px">
+      Excel 格式：需求單名稱（必填）、需求類型、負責人、成員、狀態、預計開始日、預計完成日、備註<br>
+      需求單編號可留空（自動產生）。沒有日期預設今天。
+    </div>
+
+    <div id="biProgress" style="display:none">
+      <div style="font-size:.88rem;color:var(--text2);margin-bottom:6px" id="biProgressText">處理中...</div>
+      <div style="background:var(--surface2);border-radius:8px;height:12px;overflow:hidden">
+        <div id="biProgressBar" style="height:100%;background:linear-gradient(90deg,#059669,#10B981);width:0%;transition:width .3s"></div>
+      </div>
+      <div id="biLog" style="margin-top:10px;max-height:160px;overflow-y:auto;font-size:.82rem;color:var(--text2);background:var(--surface2);border-radius:8px;padding:8px;white-space:pre-wrap"></div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+      <button onclick="closeModal('bulkImportOverlay')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 18px;cursor:pointer;color:var(--text)">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 切換批次匯入中 AI 區塊的顯示/隱藏
+function toggleBiAiSection(){
+  const mode = document.getElementById('biSubtaskMode').value;
+  document.getElementById('biAiSection').style.display = mode==='ai' ? 'block' : 'none';
+  document.getElementById('biDefaultTmplSection').style.display = mode==='default_tmpl' ? 'block' : 'none';
+}
+
+// 開啟批次匯入 Modal
+function openBulkImport(){
+  const key = localStorage.getItem('or_api_key')||'';
+  if(document.getElementById('biKeyInput')) document.getElementById('biKeyInput').value = key;
+  document.getElementById('biProgress').style.display = 'none';
+  document.getElementById('biLog').textContent = '';
+  document.getElementById('biProgressBar').style.width = '0%';
+  document.getElementById('bulkImportFile').value = '';
+
+  // 填充預設模板下拉選單
+  const tmplSel = document.getElementById('biDefaultTmpl');
+  const tmplKeys = Object.keys(ALL_TMPL).filter(k=>ALL_TMPL[k]&&ALL_TMPL[k].length>0);
+  tmplSel.innerHTML = tmplKeys.length
+    ? tmplKeys.map(k=>`<option value="${k}">${k}（${ALL_TMPL[k].length}個子任務）</option>`).join('')
+    : '<option value="">（尚未設定任何範本）</option>';
+
+  toggleBiAiSection();
+  openModal('bulkImportOverlay');
+}
+
+// 處理批次匯入的檔案解析與匯入邏輯
+async function startBulkImport(e){
+  const file = e.target.files[0]; if(!file) return;
+  const key = document.getElementById('biKeyInput').value.trim() || localStorage.getItem('or_api_key')||'';
+  const model = document.getElementById('biModelSelect').value;
+  const today = new Date().toISOString().split('T')[0];
+
+  document.getElementById('biProgress').style.display = 'block';
+  const logEl = document.getElementById('biLog');
+  const barEl = document.getElementById('biProgressBar');
+  const txtEl = document.getElementById('biProgressText');
+  logEl.textContent = '';
+
+  // （內部）批次匯入進度 log 輸出
+  function log(msg){ logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
+  if(typeof XLSX === 'undefined'){ alert('XLSX 函式庫未載入'); return; }
+
+  const reader = new FileReader();
+  reader.onload = async function(ev){
+    try{
+      const wb = XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+      if(!rows.length){ alert('找不到資料'); return; }
+
+      // 支援兩種格式：
+      // 格式A（我的範本）：需求單名稱、需求類型、負責人、成員…
+      // 格式B（使用者原始）：工作項目、類型、PM、負責人、工作分類…
+      function detectFormat(r){
+        if(r['需求單名稱']||r['需求名稱']) return 'A';
+        if(r['工作項目']||r['工作規劃']) return 'B';
+        return 'A';
+      }
+
+      // 去重：以「工作項目+工作規劃」或「需求單名稱」為 key，避免同名稱重複匯入
+      const seenKeys = new Set();
+      const dataRows = rows.filter(r => {
+        const fmt = detectFormat(r);
+        let key;
+        if(fmt === 'B'){
+          // 格式B：有 RE 編號用編號，否則用工作規劃內容
+          const re = String(r['工作項目']||'').trim();
+          const plan = String(r['工作規劃']||'').trim();
+          key = re || plan;
+        } else {
+          key = String(r['需求單名稱']||r['需求名稱']||'').trim();
+        }
+        if(!key || key === '必填') return false;
+        if(seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        return true;
+      });
+
+      if(!dataRows.length){ alert('找不到有效需求單資料'); return; }
+
+      log('📋 共讀取 ' + dataRows.length + ' 筆需求單（已自動去重）');
+
+      const existIds = new Set(DATA.requirements.map(r=>r.id));
+      const existNames = new Set(DATA.requirements.map(r=>r.name));
+      const newReqs = [];
+      let aiCount = 0, tmplCount = 0, skipCount = 0;
+
+      for(let i=0; i<dataRows.length; i++){
+        const row = dataRows[i];
+        const fmt = detectFormat(row);
+
+        let name, type, owner, devs, status, startDate, dueDate, notes, id;
+
+        if(fmt === 'B'){
+          // 格式B：使用者原始欄位
+          const re = String(row['工作項目']||'').trim();
+          const plan = String(row['工作規劃']||'').trim();
+          const detail = String(row['細部規劃說明']||'').trim();
+          name = re || plan || detail;
+          if(!name){ skipCount++; continue; }
+          type = String(row['工作分類']||row['類型']||'其他').trim();
+          owner = String(row['PM']||row['負責人']||'－').trim();
+          devs = String(row['負責人']||'－').trim();
+          status = String(row['狀態']||'待開始').trim();
+          startDate = String(row['預計開始日']||'').trim() || today;
+          dueDate = String(row['預計完成日']||'').trim();
+          notes = String(row['備註(進度說明)']||row['備註']||'').trim();
+          // 有 RE 開頭就用，否則自動產生
+          const reMatch = (re+' '+plan).match(/RE\d+/);
+          const pad = String(DATA.requirements.length + newReqs.length + 1).padStart(3,'0');
+          id = reMatch ? reMatch[0] : ('RE'+new Date().getFullYear()+pad);
+        } else {
+          // 格式A：我的範本
+          name = String(row['需求單名稱']||row['需求名稱']||'').trim();
+          if(!name){ skipCount++; continue; }
+          type = String(row['需求類型']||'其他').trim();
+          owner = String(row['負責人']||'－').trim();
+          devs = String(row['成員']||'－').trim();
+          status = String(row['狀態']||'待開始').trim();
+          startDate = String(row['預計開始日']||'').trim() || today;
+          dueDate = String(row['預計完成日']||'').trim();
+          notes = String(row['備註']||'').trim();
+          const pad = String(DATA.requirements.length + newReqs.length + 1).padStart(3,'0');
+          id = String(row['需求單編號']||'').trim() || ('RE'+new Date().getFullYear()+pad);
+        }
+
+        // 狀態正規化
+        const statusMap = {'完成':'已完成','done':'已完成','進行':'進行中','待辦':'待開始','hold':'擱置','擱置':'擱置'};
+        for(const [k,v] of Object.entries(statusMap)){ if(status.includes(k)){ status=v; break; } }
+        if(!['待開始','進行中','已完成','擱置'].includes(status)) status = '待開始';
+
+        if(existIds.has(id) || existNames.has(name)){ log('⏭ 略過重複：'+name); skipCount++; continue; }
+
+        const now = new Date().toISOString();
+        const req = { id, name, type, owner, devs, status, startDate, dueDate, actualDate:'', notes, subtasks:[], createdDate:now, lastUpdated:now };
+
+        // 決定子任務來源
+        const mode = document.getElementById('biSubtaskMode').value;
+        const typeTmpl = ALL_TMPL[type];
+
+        if(typeTmpl && typeTmpl.length > 0){
+          // 有對應範本，優先套用
+          req.subtasks = genSubtasks(typeTmpl, startDate);
+          if(!req.dueDate && req.subtasks.length) req.dueDate = req.subtasks[req.subtasks.length-1].dueDate;
+          tmplCount++;
+          log('✅ [範本:'+type+'] ' + name);
+        } else if(mode === 'default_tmpl'){
+          // 套預設模板
+          const defKey = document.getElementById('biDefaultTmpl').value;
+          const defTmpl = ALL_TMPL[defKey];
+          if(defTmpl && defTmpl.length > 0){
+            req.subtasks = genSubtasks(defTmpl, startDate);
+            if(!req.dueDate && req.subtasks.length) req.dueDate = req.subtasks[req.subtasks.length-1].dueDate;
+            tmplCount++;
+            log('✅ [預設模板] ' + name);
+          } else {
+            log('⚠️ 找不到預設模板：'+defKey+'，建立空需求單');
+          }
+        } else if(mode === 'ai'){
+          // AI 生成
+          const aiModel = document.getElementById('biModelSelect').value;
+          log('🤖 [AI] ' + name + ' 生成中...');
+          txtEl.textContent = '處理中 ' + (i+1) + ' / ' + dataRows.length + '（AI：' + name.substring(0,15)+'...）';
+          try{
+            const prompt = `你是一個專業的 PM 助理，請根據以下需求單資訊，幫我拆解出 5～8 個具體可執行的子任務。
+
+需求單名稱：${name}
+需求類型：${type}
+
+請用 JSON 陣列格式回傳，每個元素包含：
+- name: 子任務名稱（繁體中文，4字以內）
+- days: 預估完成天數（整數）
+- note: 簡短說明（一句話）
+
+只回傳 JSON 陣列，不要其他文字。`;
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions',{
+              method:'POST',
+              headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json','HTTP-Referer':'https://pm-kanban.local','X-Title':'PM Kanban Tool'},
+              body:JSON.stringify({model:aiModel, messages:[{role:'system',content:'你是 PM 助理，只回傳 JSON，不加說明或 markdown。'},{role:'user',content:prompt}], temperature:0.7, max_tokens:1500})
+            });
+            if(!res.ok) throw new Error('HTTP '+res.status);
+            const data = await res.json();
+            let raw = (data.choices?.[0]?.message?.content||'').trim();
+            raw = raw.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+            if(!raw.endsWith(']')){ const lb=raw.lastIndexOf('}'); if(lb>-1) raw=raw.substring(0,lb+1)+']'; }
+            const aiTasks = JSON.parse(raw);
+            let d = new Date(startDate);
+            req.subtasks = aiTasks.map(t=>{
+              const s = d.toISOString().split('T')[0];
+              d.setDate(d.getDate()+(t.days||3));
+              return {name:t.name, person:owner||'－', status:'待開始', startDate:s, dueDate:d.toISOString().split('T')[0], actualDate:'', pct:0, note:t.note||''};
+            });
+            if(!req.dueDate && req.subtasks.length) req.dueDate = req.subtasks[req.subtasks.length-1].dueDate;
+            aiCount++;
+            log('   → 完成 '+req.subtasks.length+' 個子任務');
+          } catch(err){
+            log('   ⚠️ AI 失敗（'+err.message+'），建立空子任務');
+          }
+          await new Promise(r=>setTimeout(r,2000));
+        } else {
+          // 只建需求單
+          log('📋 [空] ' + name);
+        }
+
+        newReqs.push(req);
+        barEl.style.width = Math.round((i+1)/dataRows.length*100)+'%';
+        txtEl.textContent = '處理中 '+(i+1)+' / '+dataRows.length;
+      }
+
+      DATA.requirements = DATA.requirements.concat(newReqs);
+      saveData(); refreshOwnerFilter(); render();
+      log('\n🎉 完成！新增 '+newReqs.length+' 筆（範本：'+tmplCount+'，AI：'+aiCount+'，略過：'+skipCount+'）');
+      txtEl.textContent = '✅ 匯入完成！';
+      barEl.style.width = '100%';
+
+    } catch(err){ log('❌ 錯誤：'+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+</script>
+
+
+<!-- Modal: 甘特圖 -->
+<div class="overlay" id="ganttOverlay" onclick="if(event.target===this)closeModal('ganttOverlay')">
+  <div class="modal" style="max-width:92vw;width:1100px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="background:linear-gradient(135deg,#0ea5e9,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0">📊 甘特圖</h3>
+      <div style="display:flex;gap:8px">
+        <button onclick="downloadGantt()" style="background:linear-gradient(135deg,#059669,#10B981);color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:.85rem">🖼️ 下載圖片</button>
+        <button onclick="exportGanttXlsx()" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:.85rem">📊 匯出 Excel</button>
+        <button onclick="closeModal('ganttOverlay')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;color:var(--text)">關閉</button>
+      </div>
+    </div>
+    <div id="ganttContainer" style="overflow:auto;flex:1"></div>
+  </div>
+</div>
+
+<script>
+// ── 甘特圖 ──
+const _selectedReqs = new Set();
+let _filterStar = false;
+let _filterSys = '';
+const MEMBER_COLORS = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+
+// 切換需求單的甘特圖選取狀態
+function toggleGanttSelect(ri){
+  const chk = document.getElementById('chk-'+ri);
+  if(chk.checked) _selectedReqs.add(ri);
+  else _selectedReqs.delete(ri);
+  const btn = document.getElementById('ganttBtn');
+  btn.style.display = _selectedReqs.size > 0 ? 'inline-flex' : 'none';
+}
+
+// 開啟甘特圖檢視 Modal
+function openGantt(){
+  if(_selectedReqs.size === 0){ alert('請先勾選至少一張需求單'); return; }
+  buildGantt();
+  openModal('ganttOverlay');
+}
+
+// 建立甘特圖 HTML（依子任務日期繪製時間軸）
+function buildGantt(){
+  const riList = [..._selectedReqs].sort((a,b)=>a-b);
+  const rows = []; // {label, reqName, person, start, end, color}
+
+  // 收集所有成員，指定顏色
+  const memberColorMap = {};
+  let colorIdx = 0;
+
+  riList.forEach(ri => {
+    const r = DATA.requirements[ri];
+    if(!r) return;
+    (r.subtasks||[]).forEach(st => {
+      if(!st.startDate || !st.dueDate) return;
+      const m = st.person || '－';
+      if(!memberColorMap[m]) memberColorMap[m] = MEMBER_COLORS[colorIdx++ % MEMBER_COLORS.length];
+      rows.push({
+        reqId: r.id, reqName: r.name,
+        label: st.name, person: m,
+        start: st.startDate, end: st.dueDate,
+        color: memberColorMap[m]
+      });
+    });
+  });
+
+  if(!rows.length){ document.getElementById('ganttContainer').innerHTML='<p style="padding:20px;color:var(--text2)">選取的需求單沒有子任務資料</p>'; return; }
+
+  // 計算時間範圍
+  const allDates = rows.flatMap(r=>[new Date(r.start), new Date(r.end)]).filter(d=>!isNaN(d));
+  let minD = new Date(Math.min(...allDates));
+  let maxD = new Date(Math.max(...allDates));
+  // 擴展到月份邊界
+  minD = new Date(minD.getFullYear(), minD.getMonth(), 1);
+  maxD = new Date(maxD.getFullYear(), maxD.getMonth()+1, 1);
+
+  // 產生半月刻度
+  const ticks = [];
+  let d = new Date(minD);
+  while(d <= maxD){
+    ticks.push(new Date(d));
+    if(d.getDate() < 15) d = new Date(d.getFullYear(), d.getMonth(), 15);
+    else d = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  }
+  ticks.push(new Date(maxD));
+
+  const totalMs = maxD - minD;
+  const labelW = 220;
+  const chartW = Math.max(700, ticks.length * 60);
+  const rowH = 32;
+  const headerH = 48;
+  const totalH = headerH + rows.length * rowH + 8;
+
+  const pct = (dateStr) => {
+    const ms = new Date(dateStr) - minD;
+    return Math.max(0, Math.min(100, ms / totalMs * 100));
+  };
+
+  // 群組標頭（需求單分隔）
+  let lastReqId = null;
+  let html = `<div id="ganttSvgWrap" style="display:flex;font-family:var(--font-body,sans-serif)">`;
+
+  // 左側標籤
+  html += `<div style="min-width:${labelW}px;flex-shrink:0;border-right:2px solid var(--border)">`;
+  html += `<div style="height:${headerH}px;background:var(--surface2);border-bottom:2px solid var(--border);display:flex;align-items:center;padding:0 12px;font-size:.8rem;color:var(--text2);font-weight:600">需求單 / 子任務</div>`;
+  rows.forEach((row,i) => {
+    const isNewReq = row.reqId !== lastReqId;
+    lastReqId = row.reqId;
+    const bg = i%2===0?'var(--surface)':'var(--surface2)';
+    html += `<div style="height:${rowH}px;background:${bg};border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:6px;overflow:hidden">`;
+    if(isNewReq) html += `<span style="font-size:.7rem;background:var(--accent);color:#fff;border-radius:4px;padding:1px 5px;white-space:nowrap;flex-shrink:0">${row.reqId}</span>`;
+    html += `<span style="font-size:.78rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${row.label}・${row.person}">${row.label}</span>`;
+    html += `<span style="font-size:.7rem;color:${row.color};font-weight:600;margin-left:auto;flex-shrink:0">${row.person}</span>`;
+    html += `</div>`;
+  });
+  html += `</div>`;
+
+  // 右側甘特圖區
+  html += `<div style="flex:1;overflow-x:auto;position:relative">`;
+  // 刻度 header
+  html += `<div style="height:${headerH}px;background:var(--surface2);border-bottom:2px solid var(--border);position:relative;min-width:${chartW}px">`;
+  ticks.forEach((t,i) => {
+    const x = (t - minD) / totalMs * 100;
+    const label = `${t.getMonth()+1}/${t.getDate()}`;
+    html += `<div style="position:absolute;left:${x}%;top:0;height:100%;border-left:1px solid var(--border);padding:4px 4px;font-size:.72rem;color:var(--text2);white-space:nowrap">${label}</div>`;
+  });
+  html += `</div>`;
+
+  // 條狀列
+  lastReqId = null;
+  rows.forEach((row,i) => {
+    const bg = i%2===0?'var(--surface)':'var(--surface2)';
+    const left = pct(row.start);
+    const width = Math.max(0.5, pct(row.end) - left);
+    html += `<div style="height:${rowH}px;background:${bg};border-bottom:1px solid var(--border);position:relative;min-width:${chartW}px">`;
+    // 今天線
+    const todayPct = (new Date() - minD) / totalMs * 100;
+    if(todayPct>=0&&todayPct<=100) html += `<div style="position:absolute;left:${todayPct}%;top:0;height:100%;width:2px;background:rgba(239,68,68,.5);z-index:1"></div>`;
+    // 條
+    html += `<div title="${row.label} (${row.person})
+${row.start} ~ ${row.end}" style="position:absolute;left:${left}%;width:${width}%;top:6px;height:${rowH-12}px;background:${row.color};border-radius:4px;opacity:.85;display:flex;align-items:center;padding:0 6px;overflow:hidden">`;
+    html += `<span style="font-size:.68rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row.person}</span>`;
+    html += `</div>`;
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+
+  // 圖例
+  html += `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:10px 0 0;border-top:1px solid var(--border);margin-top:8px">`;
+  Object.entries(memberColorMap).forEach(([m,c])=>{
+    html += `<div style="display:flex;align-items:center;gap:5px;font-size:.8rem"><div style="width:12px;height:12px;border-radius:3px;background:${c}"></div>${m}</div>`;
+  });
+  html += `<div style="display:flex;align-items:center;gap:5px;font-size:.8rem;margin-left:12px"><div style="width:3px;height:12px;background:rgba(239,68,68,.6)"></div>今天</div>`;
+  html += `</div>`;
+
+  document.getElementById('ganttContainer').innerHTML = html;
+}
+
+
+// 將甘特圖匯出為 xlsx 格式
+async function exportGanttXlsx(){
+  if(_selectedReqs.size === 0){ alert('請先勾選需求單並產出甘特圖'); return; }
+  if(typeof ExcelJS === 'undefined'){ alert('ExcelJS 尚未載入，請稍後再試'); return; }
+
+  const riList = [..._selectedReqs].sort((a,b)=>a-b);
+
+  // ── 收集任務 ──
+  const allTasks = [];
+  riList.forEach(ri=>{
+    const r = DATA.requirements[ri]; if(!r) return;
+    const subs = (r.subtasks||[]).filter(st=>st.startDate&&st.dueDate);
+    if(!subs.length){
+      allTasks.push({req_id:r.id,req_name:r.name,system:r.system||'',
+        name:'（無子任務）',person:r.owner||'',
+        startDate:r.startDate||'',dueDate:r.dueDate||'',status:r.status||'',note:r.notes||''});
+      return;
+    }
+    subs.forEach(st=>allTasks.push({req_id:r.id,req_name:r.name,system:r.system||'',
+      name:st.name||'',person:st.person||'',
+      startDate:st.startDate,dueDate:st.dueDate,status:st.status||'',note:st.note||''}));
+  });
+  if(!allTasks.length){ alert('沒有含子任務的需求單'); return; }
+
+  // 計算兩日期之間的工作天數
+  function workdays(s,e){
+    let d=new Date(s),end=new Date(e),cnt=0;
+    while(d<=end){if(d.getDay()!==0&&d.getDay()!==6)cnt++;d.setDate(d.getDate()+1);}
+    return cnt;
+  }
+
+  // ── 週段 ──
+  const dates=allTasks.flatMap(t=>[new Date(t.startDate),new Date(t.dueDate)]);
+  let minDate=new Date(Math.min(...dates)), maxDate=new Date(Math.max(...dates));
+  maxDate.setDate(maxDate.getDate()+7);
+  const dow=minDate.getDay(); minDate.setDate(minDate.getDate()-(dow===0?6:dow-1));
+  const weeks=[]; let wd=new Date(minDate);
+  while(wd<=maxDate){weeks.push(new Date(wd));wd.setDate(wd.getDate()+7);}
+
+  const STATUS_ARGB={'已完成':'FF70AD47','進行中':'FFED7D31','待開始':'FF9DC3E6','擱置':'FFFF3B30'};
+  const SYS_ARGB={'光訊系統':'FF0EA5E9','帳務系統':'FF8B5CF6','減損系統':'FF10B981'};
+  const HDR_ARGB='FF1F3864', REQ_ARGB='FFD6E4F0', ALT_ARGB='FFF5F9FF', WHT='FFFFFFFF';
+
+  // 將 ARGB 色碼轉換為 CSS hex 顏色字串
+  function argb2color(argb){ return {argb}; }
+  // 產生 ExcelJS 純色填充物件
+  function solidFill(argb){ return {type:'pattern',pattern:'solid',fgColor:{argb}}; }
+  // 產生 ExcelJS 細框線物件
+  function thinBorder(color='FFD0D0D0'){
+    const s={style:'thin',color:{argb:color}};
+    return {top:s,left:s,bottom:s,right:s};
+  }
+  // 在指定儲存格寫入表頭樣式
+  function hdrCell(ws,row,col,val,fillArgb=HDR_ARGB){
+    const c=ws.getCell(row,col);
+    c.value=val; c.fill=solidFill(fillArgb);
+    c.font={name:'Calibri',bold:true,size:10,color:{argb:WHT}};
+    c.alignment={horizontal:'center',vertical:'middle'};
+    c.border=thinBorder('FF5B7FCC');
+    return c;
+  }
+  // 在指定儲存格寫入資料樣式
+  function dataCell(ws,row,col,val,fillArgb,opts={}){
+    const c=ws.getCell(row,col);
+    c.value=val;
+    c.fill=solidFill(fillArgb);
+    c.font={name:'Calibri',size:10,...(opts.bold?{bold:true}:{}),...(opts.color?{color:{argb:opts.color}}:{})};
+    c.alignment={horizontal:opts.h||'center',vertical:'middle',wrapText:opts.wrap||false};
+    c.border=thinBorder();
+    if(opts.numFmt) c.numFmt=opts.numFmt;
+    return c;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator='PM看板';
+  wb.created=new Date();
+
+  // ════════════════════════════════════
+  //  Sheet 1：甘特圖
+  // ════════════════════════════════════
+  const ws1=wb.addWorksheet('甘特圖',{views:[{showGridLines:false}]});
+  const FIXED=7; // 固定欄數(含A空白)
+
+  // 欄寬
+  ws1.getColumn(1).width=2;
+  ws1.getColumn(2).width=18;
+  ws1.getColumn(3).width=11;
+  ws1.getColumn(4).width=20;
+  ws1.getColumn(5).width=10;
+  ws1.getColumn(6).width=12;
+  ws1.getColumn(7).width=12;
+  weeks.forEach((_,i)=>{ ws1.getColumn(FIXED+1+i).width=5.5; });
+
+  // R1 空白
+  ws1.getRow(1).height=8;
+
+  // R2 標題
+  ws1.getRow(2).height=34;
+  const titleC=ws1.getCell(2,2);
+  titleC.value='🗓️  專案甘特圖';
+  titleC.font={name:'Calibri',bold:true,size:18,color:{argb:'FF1F3864'}};
+  titleC.alignment={horizontal:'center',vertical:'middle'};
+  ws1.mergeCells(2,2,2,FIXED+weeks.length);
+
+  // R3 月份
+  ws1.getRow(3).height=20;
+  const monthMap={};
+  weeks.forEach((w,i)=>{
+    const key=`${w.getFullYear()}-${w.getMonth()}`;
+    if(!monthMap[key]){monthMap[key]={first:i,last:i,y:w.getFullYear(),m:w.getMonth()+1};}
+    else monthMap[key].last=i;
+  });
+  Object.values(monthMap).forEach(mo=>{
+    const c1=FIXED+1+mo.first, c2=FIXED+1+mo.last;
+    const label=`${mo.y}年${String(mo.m).padStart(2,'0')}月`;
+    const mc=ws1.getCell(3,c1);
+    mc.value=label; mc.fill=solidFill('FF2E75B6');
+    mc.font={name:'Calibri',bold:true,size:10,color:{argb:WHT}};
+    mc.alignment={horizontal:'center',vertical:'middle'};
+    mc.border=thinBorder('FF4A90D9');
+    if(c2>c1) ws1.mergeCells(3,c1,3,c2);
+  });
+
+  // R4 欄位 header + 週次
+  ws1.getRow(4).height=20;
+  ['需求單','系統別','子任務名稱','負責人','開始日','完成日'].forEach((h,i)=>hdrCell(ws1,4,i+2,h));
+  weeks.forEach((w,i)=>{
+    const label=`${String(w.getMonth()+1).padStart(2,'0')}/${String(w.getDate()).padStart(2,'0')}`;
+    const c=ws1.getCell(4,FIXED+1+i);
+    c.value=label;c.fill=solidFill('FFD6E4F0');
+    c.font={name:'Calibri',bold:true,size:8,color:{argb:'FF1F3864'}};
+    c.alignment={horizontal:'center',vertical:'middle'};
+    c.border=thinBorder();
+  });
+
+  // 凍結
+  ws1.views=[{state:'frozen',xSplit:FIXED,ySplit:4,showGridLines:false}];
+
+  // 資料列
+  let curRow=5, prevId=null;
+  allTasks.forEach(task=>{
+    const isNew=task.req_id!==prevId; prevId=task.req_id;
+    const rowArgb=isNew?REQ_ARGB:ALT_ARGB;
+    const t_s=new Date(task.startDate), t_e=new Date(task.dueDate);
+    ws1.getRow(curRow).height=18;
+
+    // 需求單欄
+    dataCell(ws1,curRow,2,isNew?task.req_id:'',rowArgb,{h:'left',bold:isNew});
+    // 系統別
+    const sysArgb=SYS_ARGB[task.system]||'FF2E75B6';
+    const sc=dataCell(ws1,curRow,3,isNew?task.system:'',isNew?sysArgb+'33':rowArgb,{bold:isNew});
+    if(isNew){sc.font={name:'Calibri',bold:true,size:10,color:{argb:sysArgb}};sc.fill=solidFill(sysArgb+'44');}
+    // 子任務名稱
+    dataCell(ws1,curRow,4,task.name,rowArgb,{h:'left'});
+    // 負責人
+    dataCell(ws1,curRow,5,task.person,rowArgb);
+    // 開始/完成日
+    dataCell(ws1,curRow,6,task.startDate,rowArgb);
+    dataCell(ws1,curRow,7,task.dueDate,rowArgb);
+
+    // 甘特條
+    weeks.forEach((w,wi)=>{
+      const wEnd=new Date(w); wEnd.setDate(wEnd.getDate()+6);
+      const inRange=t_s<=wEnd&&t_e>=w;
+      const barArgb=STATUS_ARGB[task.status]||'FF4472C4';
+      const cell=ws1.getCell(curRow,FIXED+1+wi);
+      if(inRange){
+        cell.fill=solidFill(barArgb);
+        // 漸層感：任務起始週和結束週淡一點
+        const isEdge=(wi===weeks.findIndex(x=>t_s<=new Date(x.getTime()+6*86400000)&&t_s>=x)
+                   || wi===weeks.findIndex(x=>t_e<=new Date(x.getTime()+6*86400000)&&t_e>=x));
+        cell.value='';
+        cell.border=thinBorder('FF'+barArgb.slice(2)+'88');
+      } else {
+        cell.fill=solidFill(rowArgb);
+        cell.border=thinBorder('FFE8E8E8');
+      }
+    });
+    curRow++;
+  });
+
+  // 圖例
+  curRow++;
+  ws1.getRow(curRow).height=18;
+  ws1.getCell(curRow,2).value='圖例：';
+  ws1.getCell(curRow,2).font={name:'Calibri',bold:true,size:10};
+  [['已完成','FF70AD47'],['進行中','FFED7D31'],['待開始','FF9DC3E6'],['擱置','FFFF3B30']].forEach(([lbl,argb],i)=>{
+    const box=ws1.getCell(curRow,3+i*2);
+    box.fill=solidFill(argb); box.value=' ';
+    box.border=thinBorder();
+    const lc=ws1.getCell(curRow,4+i*2);
+    lc.value=lbl; lc.font={name:'Calibri',size:9,color:{argb:'FF444444'}};
+  });
+
+  // ════════════════════════════════════
+  //  Sheet 2：詳細資料
+  // ════════════════════════════════════
+  const ws2=wb.addWorksheet('詳細資料',{views:[{showGridLines:false}]});
+  ws2.views=[{state:'frozen',ySplit:1,showGridLines:false}];
+  ['需求單編號','需求單名稱','系統別','子任務名稱','負責人','開始日','完成日','工作天數','狀態','備註'].forEach((h,i)=>{
+    hdrCell(ws2,1,i+1,h);
+  });
+  ws2.getRow(1).height=22;
+  [14,30,10,20,10,12,12,10,10,24].forEach((w,i)=>ws2.getColumn(i+1).width=w);
+  ws2.autoFilter={from:{row:1,column:1},to:{row:1,column:10}};
+
+  let r2=2, prevId2=null;
+  allTasks.forEach((task,ti)=>{
+    const isNew=task.req_id!==prevId2; prevId2=task.req_id;
+    const rowArgb=ti%2===0?WHT:'FFF5F9FF';
+    const wd=workdays(task.startDate,task.dueDate);
+    const stArgb=STATUS_ARGB[task.status]||'FFDDDDDD';
+    ws2.getRow(r2).height=16;
+    [
+      [isNew?task.req_id:'',{h:'left',bold:isNew}],
+      [isNew?task.req_name:'',{h:'left',bold:isNew}],
+      [isNew?task.system:'',{}],
+      [task.name,{h:'left'}],[task.person,{}],
+      [task.startDate,{}],[task.dueDate,{}],
+      [wd,{}],[task.status,{}],[task.note||'',{h:'left'}]
+    ].forEach(([val,opts],ci)=>{
+      const fill=ci===8?stArgb+'55':rowArgb;
+      dataCell(ws2,r2,ci+1,val,fill,opts);
+    });
+    r2++;
+  });
+
+  // ════════════════════════════════════
+  //  Sheet 3：成員工作量
+  // ════════════════════════════════════
+  const ws3=wb.addWorksheet('成員工作量',{views:[{showGridLines:false}]});
+  ws3.views=[{state:'frozen',ySplit:2,showGridLines:false}];
+
+  // 標題
+  ws3.getRow(1).height=30;
+  const t3=ws3.getCell(1,1);
+  t3.value='👤  成員工作量分析'; t3.font={name:'Calibri',bold:true,size:14,color:{argb:'FF1F3864'}};
+  t3.alignment={horizontal:'center',vertical:'middle'}; ws3.mergeCells(1,1,1,4);
+
+  ['成員','總工作天數','子任務數','佔比'].forEach((h,i)=>hdrCell(ws3,2,i+1,h));
+  ws3.getRow(2).height=22;
+  [14,14,10,10].forEach((w,i)=>ws3.getColumn(i+1).width=w);
+
+  const memberDays={},memberCnt={};
+  allTasks.forEach(t=>{
+    const m=t.person||'未指定', wd=workdays(t.startDate,t.dueDate);
+    memberDays[m]=(memberDays[m]||0)+wd; memberCnt[m]=(memberCnt[m]||0)+1;
+  });
+  const totalDays=Object.values(memberDays).reduce((a,b)=>a+b,0);
+  const sorted=Object.entries(memberDays).sort((a,b)=>b[1]-a[1]);
+  let r3=3;
+  sorted.forEach(([m,d],i)=>{
+    const rowArgb=i%2===0?WHT:'FFF5F9FF';
+    ws3.getRow(r3).height=18;
+    dataCell(ws3,r3,1,m,rowArgb,{h:'left',bold:true});
+    dataCell(ws3,r3,2,d,rowArgb);
+    dataCell(ws3,r3,3,memberCnt[m]||0,rowArgb);
+    const pc=ws3.getCell(r3,4);
+    pc.value=totalDays?d/totalDays:0; pc.numFmt='0.0%';
+    pc.fill=solidFill(rowArgb); pc.font={name:'Calibri',size:10};
+    pc.alignment={horizontal:'center',vertical:'middle'}; pc.border=thinBorder();
+    r3++;
+  });
+  // 合計列
+  ws3.getRow(r3).height=20;
+  const totArgb='FFD6E4F0';
+  dataCell(ws3,r3,1,'合計',totArgb,{bold:true});
+  dataCell(ws3,r3,2,totalDays,totArgb,{bold:true});
+  dataCell(ws3,r3,3,Object.values(memberCnt).reduce((a,b)=>a+b,0),totArgb,{bold:true});
+  dataCell(ws3,r3,4,'',totArgb);
+
+  // ── 下載 ──
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='甘特圖_'+(new Date().toISOString().slice(0,10))+'.xlsx';
+  a.click();
+}
+
+
+// 觸發甘特圖 xlsx 下載
+function downloadGantt(){
+  const wrap = document.getElementById('ganttSvgWrap');
+  if(!wrap){ alert('請先產出甘特圖'); return; }
+  if(typeof html2canvas !== 'undefined'){
+    html2canvas(wrap,{backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--surface')||'#fff', scale:2}).then(canvas=>{
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = '甘特圖_'+(new Date().toISOString().slice(0,10))+'.png';
+      a.click();
+    });
+  } else {
+    alert('下載功能需要 html2canvas 函式庫，請確認網路後重試');
+  }
+}
+
+// ── 頁面初始化 ──
+document.addEventListener('DOMContentLoaded', function(){
+  // 動態偵測 toolbar 高度
+  const tb = document.getElementById('mainToolbar');
+  const qz = document.getElementById('queryZone');
+  // 更新查詢區高度 CSS 變數（供 sticky 定位計算使用）
+  function updateQH(){
+    const header = document.querySelector('header');
+    const hh = header ? header.offsetHeight : 56;
+    const qh = qz ? qz.offsetHeight : 0;
+    document.documentElement.style.setProperty('--qh', (hh + qh) + 'px');
+  }
+  updateQH();
+  requestAnimationFrame(updateQH);
+  setTimeout(updateQH, 100);
+  setTimeout(updateQH, 300);
+  setTimeout(updateQH, 800);
+  window.addEventListener('load', updateQH);
+  if(window.ResizeObserver){
+    const ro = new ResizeObserver(updateQH);
+    if(qz) ro.observe(qz);
+    const hdr = document.querySelector('header');
+    if(hdr) ro.observe(hdr);
+    // 監控 appWrapper 高度
+    const aw = document.getElementById('appWrapper');
+    if(aw) ro.observe(aw);
+  }
+  window.addEventListener('resize', updateQH);;
+  if(qz && window.ResizeObserver){ new ResizeObserver(updateQH).observe(qz); }
+  window.addEventListener('resize', updateQH);
+
+  refreshOwnerFilter();
+  render();
+});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+
+<script>
+(function(){
+  // 為指定元素加上滑鼠拖曳捲動功能（今日儀表板側欄）
+  function addDragScroll(el){
+    let isDown=false, startY, scrollTop;
+    el.addEventListener('mousedown',e=>{isDown=true;el.classList.add('grabbing');startY=e.pageY-el.offsetTop;scrollTop=el.scrollTop;});
+    document.addEventListener('mouseup',()=>{isDown=false;el.classList.remove('grabbing');});
+    el.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const y=e.pageY-el.offsetTop;el.scrollTop=scrollTop-(y-startY);});
+  }
+  window.addEventListener('DOMContentLoaded',()=>{
+    const sb=document.getElementById('sidebar');
+    if(sb) addDragScroll(sb);
+    // 設定 mainZone 高度
+    function setMainHeight(){
+      const ml = document.getElementById('mainZone');
+      const qz = document.getElementById('queryZone');
+      const hdr = document.querySelector('header');
+      if(!ml) return;
+      const usedH = (hdr ? hdr.offsetHeight : 0) + (qz ? qz.offsetHeight : 0);
+      ml.style.height = (window.innerHeight - usedH) + 'px';
+    }
+    setMainHeight();
+    window.addEventListener('resize', setMainHeight);
+  });
+})();
+</script>
+
+<script>
+// 強制滾輪滾動需求列表區
+window.addEventListener('wheel', function(e) {
+  const bc = document.getElementById('boardCol');
+  if (!bc) return;
+  const sb = document.getElementById('sidebar');
+  if (sb && sb.contains(e.target)) return; // sidebar 自己捲
+  e.preventDefault();
+  let delta = e.deltaY;
+  if (e.deltaMode === 1) delta *= 24;
+  else if (e.deltaMode === 2) delta *= (bc.clientHeight || 600);
+  bc.scrollBy({ top: delta, behavior: 'instant' });
+}, { passive: false });
+</script>
+
+</body>
+</html>
